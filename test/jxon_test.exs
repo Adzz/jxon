@@ -335,6 +335,16 @@ defmodule JxonTest do
       assert Jxon.parse(json_string, TestHandler, acc) == "-1.5"
     end
 
+    test "leading 0s are not allowed" do
+      json_string = "-01.5"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :leading_zero, "01.5"}
+
+      json_string = "-0001"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :leading_zero, "0001"}
+    end
+
     test "white space for a bare value is no invalid" do
       json_string = "-1.5   \n \t \r"
       acc = []

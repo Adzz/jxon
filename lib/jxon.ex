@@ -158,7 +158,7 @@ defmodule Jxon do
   defp parse_integer(<<?0, rest::bits>>, number_end_index) do
     # Would it be good for handlers to be able do this optionally? Like as an extension
     # allow leading 0s in integers or something. Seems like that would be good...
-    {:error, :leading_zero, rest}
+    {:error, :leading_zero, <<?0>> <> rest}
   end
 
   defp parse_integer(<<byte, rest::bits>>, number_end_index) when byte in '123456789' do
