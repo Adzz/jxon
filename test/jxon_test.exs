@@ -225,91 +225,127 @@ defmodule JxonTest do
     def do_true(_acc), do: true
     def do_false(_acc), do: false
     def do_null(_acc), do: nil
-    def do_negative_number(number, _acc), do: "-"<>number
+    def do_negative_number(number, _acc), do: "-" <> number
     def do_positive_number(number, _acc), do: number
     def end_of_document(acc), do: acc
   end
 
-  test "bare values surrounded by white space works" do
-    json_string = " \t \n \r false  \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == false
+  describe "bare values" do
+    test "bare values surrounded by white space works" do
+      json_string = " \t \n \r false  \t \n \r  "
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == false
 
-    json_string = "  \t \n \r  true  \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == true
+      json_string = "  \t \n \r  true  \t \n \r  "
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == true
 
-    json_string = "  \t \n \r  null  \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == nil
+      json_string = "  \t \n \r  null  \t \n \r  "
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == nil
+    end
+
+    test "invalid multiple bare values with whitespace" do
+      json_string = "    false  true  "
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "  true  "}
+
+      json_string = "  \t \n \r  true  \t \n \r  false   \t \n \r   "
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "  \t \n \r  false   \t \n \r   "}
+
+      json_string = "  \t \n \r  null  \t \n \r  true   \t \n \r  "
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "  \t \n \r  true   \t \n \r  "}
+    end
+
+    test "invalid multiple bare values with whitespace and nested errors" do
+      json_string = "  \t \n \r  false   \t \n \r   tru   \t \n \r   "
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "   \t \n \r   tru   \t \n \r   "}
+
+      json_string = "   \t \n \r     true    \t \n \r   flse    \t \n \r  "
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "    \t \n \r   flse    \t \n \r  "}
+
+      json_string = "  \t \n \r      null    \t \n \r    rue  \t \n \r  "
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "    \t \n \r    rue  \t \n \r  "}
+    end
+
+    test "invalid multiple bare values and nested errors" do
+      json_string = "false tru"
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, " tru"}
+
+      json_string = "true:flse"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, ":flse"}
+
+      json_string = "null,rue"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, ",rue"}
+    end
+
+    test "invalid multiple bare values" do
+      json_string = "false true"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, " true"}
+
+      json_string = "true:false"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, ":false"}
+
+      json_string = "null,true"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, ",true"}
+    end
   end
 
-  test "invalid multiple bare values with whitespace" do
-    json_string = "    false  true  "
-    # What is a good error message here? Pointing to the part that went wrong is probably
-    # good, but might be hard for large strings?
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, "  true  "}
+  describe "negative numbers" do
+    test "parsing negative numbers is good and fine" do
+      json_string = "-1"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-1"
+    end
 
-    json_string = "  \t \n \r  true  \t \n \r  false   \t \n \r   "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, "  \t \n \r  false   \t \n \r   "}
+    test "negative decimal" do
+      json_string = "-1.5"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-1.5"
+    end
 
-    json_string = "  \t \n \r  null  \t \n \r  true   \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, "  \t \n \r  true   \t \n \r  "}
-  end
+    test "white space for a bare value is no invalid" do
+      json_string = "-1.5   \n \t \r"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-1.5"
+    end
 
-  test "invalid multiple bare values with whitespace and nested errors" do
-    json_string = "  \t \n \r  false   \t \n \r   tru   \t \n \r   "
-    # What is a good error message here? Pointing to the part that went wrong is probably
-    # good, but might be hard for large strings?
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, "   \t \n \r   tru   \t \n \r   "}
-
-    json_string = "   \t \n \r     true    \t \n \r   flse    \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, "    \t \n \r   flse    \t \n \r  "}
-
-    json_string = "  \t \n \r      null    \t \n \r    rue  \t \n \r  "
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, "    \t \n \r    rue  \t \n \r  "}
-  end
-
-  test "invalid multiple bare values and nested errors" do
-    json_string = "false tru"
-    # What is a good error message here? Pointing to the part that went wrong is probably
-    # good, but might be hard for large strings?
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, " tru"}
-
-    json_string = "true:flse"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, ":flse"}
-
-    json_string = "null,rue"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, ",rue"}
-  end
-
-  test "invalid multiple bare values" do
-    json_string = "false true"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == {:error, :multiple_bare_values, " true"}
-
-    json_string = "true:false"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, ":false"}
-
-    json_string = "null,true"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) ==  {:error, :multiple_bare_values, ",true"}
-  end
-
-  test "parsing negative numbers is good and fine" do
-    json_string = "-1"
-    acc = []
-    assert Jxon.parse(json_string, TestHandler, acc) == "-1"
+    test "invalid int" do
+      json_string = "-1.5;"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, ";"}
+    end
   end
 
   # for f <- File.ls!("/Users/Adz/Projects/jxon/test/test_parsing/") |> Enum.take(1) do

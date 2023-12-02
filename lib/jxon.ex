@@ -169,24 +169,27 @@ defmodule Jxon do
 
   defp parse_integer(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
     # parse_exponent(rest, number_end_index + 1)
+    raise "not implemented"
   end
 
   defp parse_integer(<<?., rest::bits>>, number_end_index) do
     parse_fractional_digits(rest, number_end_index + 1)
   end
 
-  # We also need to detect when we see any other valid terminator, then error on everything else...
+  # We also need to detect when we see any other valid terminator, then error on
+  # everything else...
   defp parse_integer(<<>> = rest, number_end_index) do
     {number_end_index, rest}
   end
 
-  defp parse_integer(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index) when byte in [@comma, @quotation_mark] do
+  defp parse_integer(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
+       when byte in [@comma, @quotation_mark | @whitespace] do
     {number_end_index, rest}
   end
 
   # This is like parse_number but does not allow for '.'
-  defp parse_fractional_digits(<<>>, number_end_index) do
-    number_end_index
+  defp parse_fractional_digits(<<>> = rest, number_end_index) do
+    {number_end_index, rest}
   end
 
   defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index)
@@ -194,8 +197,14 @@ defmodule Jxon do
     parse_fractional_digits(rest, number_end_index + 1)
   end
 
-  defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index) do
-    parse_fractional_digits(rest, number_end_index + 1)
+  defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
+    # parse_exponent(rest, number_end_index + 1)
+    raise "not implemented"
+  end
+
+  defp parse_fractional_digits(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
+       when byte in [@comma, @quotation_mark | @whitespace] do
+    {number_end_index, rest}
   end
 
   defp parse_fractional_digits(rest, _number_end_index) do
@@ -216,9 +225,9 @@ defmodule Jxon do
   Splits a binary into everything up to the a terminating character, the terminating
   character and everything after that.
 
-  This iterates through the binary one byte at a time which means the terminating char should
-  be one byte. If multiple terminating chars are provided we stop as soon as we see any one
-  of them.
+  This iterates through the binary one byte at a time which means the terminating char
+  should be one byte. If multiple terminating chars are provided we stop as soon as we
+  see any one of them.
 
   It's faster to keep this in this module as the match context gets re-used if we do.
   you can see the warnings if you play around with this:
