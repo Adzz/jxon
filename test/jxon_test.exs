@@ -327,12 +327,16 @@ defmodule JxonTest do
       json_string = "-1"
       acc = []
       assert Jxon.parse(json_string, TestHandler, acc) == "-1"
+
+      json_string = "-10920394059687"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-10920394059687"
     end
 
-    test "int with error chars aftter" do
+    test "int with error chars after" do
       json_string = "-1;"
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, ";"}
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-1;"}
     end
 
     test "int with exponent" do
@@ -358,17 +362,17 @@ defmodule JxonTest do
     test "double e is wrong" do
       json_string = "-11eE+2"
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "E+2"}
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-11eE+2"}
 
       json_string = "-11Ee+2"
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "e+2"}
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-11Ee+2"}
     end
 
     test "letter is wrong" do
       json_string = "-11eEa2"
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "Ea2"}
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-11eEa2"}
     end
 
     test "negative decimal" do
@@ -396,7 +400,84 @@ defmodule JxonTest do
     test "invalid int" do
       json_string = "-1.5;"
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, ";"}
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-1.5;"}
+    end
+  end
+
+  describe "positive numbers" do
+    test "numbers with 0s in" do
+      json_string = "102030405060708099887654321"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "102030405060708099887654321"
+    end
+
+    test "we can parse a number" do
+      json_string = "1"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1"
+    end
+
+    test "we can parse a float" do
+      json_string = "1.500"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1.500"
+    end
+
+    test "errors for both" do
+      json_string = "1;"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "1;"}
+
+      json_string = "1.5;"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "1.5;"}
+    end
+
+    test "exponents" do
+      json_string = "1.5e+40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1.5e+40"
+
+      json_string = "1.5e-40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1.5e-40"
+
+      json_string = "1.5E+40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1.5E+40"
+
+      json_string = "1.5E-40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "1.5E-40"
+
+      json_string = "15e+40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "15e+40"
+
+      json_string = "15e-40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "15e-40"
+
+      json_string = "15E+40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "15E+40"
+
+      json_string = "15E-40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "15E-40"
+
+      json_string = "15ee+40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "15ee+40"}
+    end
+
+    test "leading 0s" do
+      json_string = "001"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :leading_zero, "001"}
+      json_string = "01.5"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :leading_zero, "01.5"}
     end
   end
 

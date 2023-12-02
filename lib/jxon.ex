@@ -78,6 +78,19 @@ defmodule Jxon do
   @close_object <<0x7D>>
   @plus <<0x2B>>
   @minus <<0x2D>>
+  @zero <<0x30>>
+  @digits [
+    <<0x31>>,
+    <<0x32>>,
+    <<0x33>>,
+    <<0x34>>,
+    <<0x35>>,
+    <<0x36>>,
+    <<0x37>>,
+    <<0x38>>,
+    <<0x39>>
+  ]
+  @decimal_point <<0x2E>>
   @doc """
   """
   def parse(<<>>, handler, acc), do: handler.end_of_document(acc)
@@ -96,15 +109,48 @@ defmodule Jxon do
   def parse("false", handler, acc), do: handler.do_value(acc)
   def parse("null", handler, acc), do: handler.do_null(acc)
 
-  def parse("-" <> number, handler, acc) do
-    # TODO change name as we don't parse it we find the end index of it. very different.
+  # Do we put an error case for zero? if we see it here it will be an error?
+  # that might actually allow us to have the parse_integer and parse_exponent to be the same
+  # or more similar? Though perhaps is less clear what the rules are????
+
+  # Leading zeros are prohibited!!
+  # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
+  def parse(<<@zero, rest::bits>>, _handler, _acc) do
+    # Would it be good for handlers to be able do this optionally? Like as an extension
+    # allow leading 0s in integers or something. Seems like that would be good... To do
+    # that we could call the handler and then case on the return value to decide wither we
+    # continue or not. In reality we could do that anyway everywhere we call the handler and
+    # have a haltable / continueable json parser. We will circle back to this.
+    {:error, :leading_zero, @zero <> rest}
+  end
+
+  def parse(<<@minus, @zero, rest::bits>>, _handler, _acc) do
+    {:error, :leading_zero, @zero <> rest}
+  end
+
+  def parse(<<@minus, number::bits>> = original, handler, acc) do
     case parse_integer(number, 0) do
       {end_index, remaining} ->
         number = :binary.part(number, 0, end_index)
         parse(remaining, handler, handler.do_negative_number(number, acc))
 
-      {:error, _, _} = error ->
-        error
+      {:error, :invalid_number, _problematic_char_index} ->
+        {:error, :invalid_number, original}
+    end
+  end
+
+  def parse(<<byte::binary-size(1), rest::bits>> = original, handler, acc) when byte in @digits do
+    # TODO change name as we don't parse it we find the end index of it. very different.
+    case parse_integer(rest, 1) do
+      {end_index, remaining} ->
+        number = :binary.part(original, 0, end_index)
+        parse(remaining, handler, handler.do_positive_number(number, acc))
+
+      {:error, :invalid_number, _problematic_char_index} ->
+        # We could call the handler and have it decide what to do here. Alternatively if
+        # we provide the problematic_char_index then the caller could snip that char out
+        # and attempt a re-parse and stuff. So we should at least provide that I think.
+        {:error, :invalid_number, original}
     end
   end
 
@@ -135,35 +181,28 @@ defmodule Jxon do
   # This will return the end index of the number as far as we can see it, erroring if we
   # see something we shouldn't along the way (like whitespace or a " or [ etc).
 
-  # Leading zeros are prohibited!!
-  # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
   # it goes [ minus ] int [frac] [exp]
   # which means we can see frac without exp and exp without frac.
-  defp parse_integer(<<?0, rest::bits>>, _number_end_index) do
-    # Would it be good for handlers to be able do this optionally? Like as an extension
-    # allow leading 0s in integers or something. Seems like that would be good...
-    {:error, :leading_zero, <<?0>> <> rest}
-  end
-
-  defp parse_integer(<<byte, rest::bits>>, number_end_index) when byte in '123456789' do
+  defp parse_integer(<<byte::binary-size(1), rest::bits>>, number_end_index)
+       when byte in [@zero | @digits] do
     # To reduce the mems we keep a count of how far along we are and later we binary_part
     # the section we care about...
     parse_integer(rest, number_end_index + 1)
   end
 
-  defp parse_integer(<<?e, ?+, rest::bits>>, number_end_index) do
+  defp parse_integer(<<?e, @plus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_integer(<<?E, ?+, rest::bits>>, number_end_index) do
+  defp parse_integer(<<?E, @plus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_integer(<<?E, ?-, rest::bits>>, number_end_index) do
+  defp parse_integer(<<?E, @minus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_integer(<<?e, ?-, rest::bits>>, number_end_index) do
+  defp parse_integer(<<?e, @minus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
@@ -171,12 +210,10 @@ defmodule Jxon do
     parse_exponent(rest, number_end_index + 1)
   end
 
-  defp parse_integer(<<?., rest::bits>>, number_end_index) do
+  defp parse_integer(<<@decimal_point, rest::bits>>, number_end_index) do
     parse_fractional_digits(rest, number_end_index + 1)
   end
 
-  # We also need to detect when we see any other valid terminator, then error on
-  # everything else...
   defp parse_integer(<<>> = rest, number_end_index) do
     {number_end_index, rest}
   end
@@ -186,8 +223,8 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
-  defp parse_integer(rest, _number_end_index) do
-    {:error, :invalid_number, rest}
+  defp parse_integer(_rest, number_end_index) do
+    {:error, :invalid_number, number_end_index + 1}
   end
 
   # This is like parse_number but does not allow for '.'
@@ -195,24 +232,24 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
-  defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index)
-       when byte in '0123456789' do
+  defp parse_fractional_digits(<<byte::binary-size(1), rest::bits>>, number_end_index)
+       when byte in [@zero | @digits] do
     parse_fractional_digits(rest, number_end_index + 1)
   end
 
-  defp parse_fractional_digits(<<?e, ?+, rest::bits>>, number_end_index) do
+  defp parse_fractional_digits(<<?e, @plus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_fractional_digits(<<?E, ?+, rest::bits>>, number_end_index) do
+  defp parse_fractional_digits(<<?E, @plus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_fractional_digits(<<?E, ?-, rest::bits>>, number_end_index) do
+  defp parse_fractional_digits(<<?E, @minus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
-  defp parse_fractional_digits(<<?e, ?-, rest::bits>>, number_end_index) do
+  defp parse_fractional_digits(<<?e, @minus, rest::bits>>, number_end_index) do
     parse_exponent(rest, number_end_index + 2)
   end
 
@@ -225,11 +262,12 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
-  defp parse_fractional_digits(rest, _number_end_index) do
-    {:error, :invalid_number, rest}
+  defp parse_fractional_digits(_rest, number_end_index) do
+    {:error, :invalid_number, number_end_index + 1}
   end
 
-  defp parse_exponent(<<byte, rest::bits>>, number_end_index) when byte in '0123456789' do
+  defp parse_exponent(<<byte::binary-size(1), rest::bits>>, number_end_index)
+       when byte in [@zero | @digits] do
     parse_exponent(rest, number_end_index + 1)
   end
 
@@ -242,8 +280,8 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
-  defp parse_exponent(rest, _number_end_index) do
-    {:error, :invalid_number, rest}
+  defp parse_exponent(_rest, number_end_index) do
+    {:error, :invalid_number, number_end_index + 1}
   end
 
   # Is this faster? Well this stops as soon as you find a non whitespace char, but doesn't
