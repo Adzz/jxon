@@ -79,23 +79,6 @@ defmodule Jxon do
   @plus <<0x2B>>
   @minus <<0x2D>>
   @doc """
-  The key point with this is that we emit events with the correct data. To test
-  that we want to supply a test handler so we can assert that it is called.
-
-  There are simple rules about what we expect after we see specific chars. So it makes
-  sense to think about all of the top level "tells" for the type. For JSON I think they
-  would be the following:
-
-    [
-    "
-    {
-    0..9 (ie a number)
-    - (for a minus number)
-    f | t (ie false or true)
-    n (ie null)
-
-  From there we can tell which data type we are dealing with, and so can parse up until
-  we see the next character that matters for that specific data type.
   """
   def parse(<<>>, handler, acc), do: handler.end_of_document(acc)
   def parse(@space <> rest, handler, acc), do: parse(rest, handler, acc)
