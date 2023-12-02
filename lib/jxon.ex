@@ -259,6 +259,10 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
+  defp parse_exponent(rest, _number_end_index) do
+    {:error, :invalid_number, rest}
+  end
+
   # Is this faster? Well this stops as soon as you find a non whitespace char, but doesn't
   # actually parse the rest of the binary. That is going to be faster for certain kinds of
   # data. This might also let us return better errors because we wont return an error for
