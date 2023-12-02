@@ -76,7 +76,8 @@ defmodule Jxon do
   @close_array <<0x5D>>
   @open_object <<0x7B>>
   @close_object <<0x7D>>
-
+  @plus <<0x2B>>
+  @minus <<0x2D>>
   @doc """
   The key point with this is that we emit events with the correct data. To test
   that we want to supply a test handler so we can assert that it is called.
@@ -155,7 +156,7 @@ defmodule Jxon do
   # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
   # it goes [ minus ] int [frac] [exp]
   # which means we can see frac without exp and exp without frac.
-  defp parse_integer(<<?0, rest::bits>>, number_end_index) do
+  defp parse_integer(<<?0, rest::bits>>, _number_end_index) do
     # Would it be good for handlers to be able do this optionally? Like as an extension
     # allow leading 0s in integers or something. Seems like that would be good...
     {:error, :leading_zero, <<?0>> <> rest}
@@ -167,9 +168,24 @@ defmodule Jxon do
     parse_integer(rest, number_end_index + 1)
   end
 
+  defp parse_integer(<<?e, ?+, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_integer(<<?E, ?+, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_integer(<<?E, ?-, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_integer(<<?e, ?-, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
   defp parse_integer(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
-    # parse_exponent(rest, number_end_index + 1)
-    raise "not implemented"
+    parse_exponent(rest, number_end_index + 1)
   end
 
   defp parse_integer(<<?., rest::bits>>, number_end_index) do
@@ -187,6 +203,10 @@ defmodule Jxon do
     {number_end_index, rest}
   end
 
+  defp parse_integer(rest, _number_end_index) do
+    {:error, :invalid_number, rest}
+  end
+
   # This is like parse_number but does not allow for '.'
   defp parse_fractional_digits(<<>> = rest, number_end_index) do
     {number_end_index, rest}
@@ -197,9 +217,24 @@ defmodule Jxon do
     parse_fractional_digits(rest, number_end_index + 1)
   end
 
+  defp parse_fractional_digits(<<?e, ?+, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_fractional_digits(<<?E, ?+, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_fractional_digits(<<?E, ?-, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
+  defp parse_fractional_digits(<<?e, ?-, rest::bits>>, number_end_index) do
+    parse_exponent(rest, number_end_index + 2)
+  end
+
   defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
-    # parse_exponent(rest, number_end_index + 1)
-    raise "not implemented"
+    parse_exponent(rest, number_end_index + 1)
   end
 
   defp parse_fractional_digits(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
@@ -209,6 +244,19 @@ defmodule Jxon do
 
   defp parse_fractional_digits(rest, _number_end_index) do
     {:error, :invalid_number, rest}
+  end
+
+  defp parse_exponent(<<byte, rest::bits>>, number_end_index) when byte in '0123456789' do
+    parse_exponent(rest, number_end_index + 1)
+  end
+
+  defp parse_exponent(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
+       when byte in [@comma, @quotation_mark | @whitespace] do
+    {number_end_index, rest}
+  end
+
+  defp parse_exponent(<<>> = rest, number_end_index) do
+    {number_end_index, rest}
   end
 
   # Is this faster? Well this stops as soon as you find a non whitespace char, but doesn't

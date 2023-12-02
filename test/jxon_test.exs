@@ -329,6 +329,24 @@ defmodule JxonTest do
       assert Jxon.parse(json_string, TestHandler, acc) == "-1"
     end
 
+    test "int with error chars aftter" do
+      json_string = "-1;"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, ";"}
+    end
+
+    test "int with exponent" do
+      json_string = "-1e40"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-1e40"
+    end
+
+    test "int with positive exponen" do
+      json_string = "-11e+2"
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "-11e+2"
+    end
+
     test "negative decimal" do
       json_string = "-1.5"
       acc = []
