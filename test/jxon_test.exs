@@ -225,6 +225,7 @@ defmodule JxonTest do
     def do_true(_acc), do: true
     def do_false(_acc), do: false
     def do_null(_acc), do: nil
+    def do_string(string, _acc), do: string
     def do_negative_number(number, _acc), do: "-" <> number
     def do_positive_number(number, _acc), do: number
     def end_of_document(acc), do: acc
@@ -402,6 +403,26 @@ defmodule JxonTest do
       acc = []
       assert Jxon.parse(json_string, TestHandler, acc) == {:error, :invalid_number, "-1.5;"}
     end
+
+    test "multiple bare values is wrong?" do
+      json_string = "-1 -2 3 4 5"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "-1 -2 3 4 5"}
+
+      json_string = "-1.2 . -2.3 \n\t\r"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "-1.2 . -2.3 \n\t\r"}
+
+      json_string = "-1.2\n-2.3 \n\t\r"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "-1.2\n-2.3 \n\t\r"}
+    end
   end
 
   describe "positive numbers" do
@@ -479,7 +500,61 @@ defmodule JxonTest do
       acc = []
       assert Jxon.parse(json_string, TestHandler, acc) == {:error, :leading_zero, "01.5"}
     end
+
+    test "multiple bare values is wrong?" do
+      json_string = "1 2 3 4 5"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "1 2 3 4 5"}
+
+      json_string = "1.2 . 2.3 \n\t\r"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "1.2 . 2.3 \n\t\r"}
+
+      json_string = "1.2\n2.3 \n\t\r"
+      acc = []
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :multiple_bare_values, "1.2\n2.3 \n\t\r"}
+    end
   end
+
+  describe "strings" do
+    test "basic string" do
+      # These string escapes are for Elixir not JSON, so the parser just sees it as
+      # "[1,2,3,4]"
+      json_string = "\"[1, 2, 3, 4]\""
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "\"[1, 2, 3, 4]\""
+    end
+
+    test "escaped quotation mark in string" do
+      json_string = File.read!("/Users/Adz/Projects/jxon/test/fixtures/escapes_string.json")
+      acc = []
+
+      # So the first \ is escaped, then the " is escaped by elixir which is why we see 3?
+      # The thing is Jason doesn't seem to do this so not sure...
+      assert Jxon.parse(json_string, TestHandler, acc) == "\"this is what he said: \\\"no\\\"\""
+    end
+
+    test "escapes" do
+      json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
+      acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
+    end
+  end
+
+  # describe "arrays" do
+  #   test "we can parse a basic array" do
+  #     json_string = "[1, 2, 3, 4]"
+  #     acc = []
+  #     assert Jxon.parse(json_string, TestHandler, acc) == "[1, 2, 3, 4]"
+
+  #   end
+  # end
 
   # for f <- File.ls!("/Users/Adz/Projects/jxon/test/test_parsing/") |> Enum.take(1) do
   #   test "#{"/Users/Adz/Projects/jxon/test/test_parsing/" <> f}" do

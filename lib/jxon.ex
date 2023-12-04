@@ -105,14 +105,6 @@ defmodule Jxon do
   #   parse(skip_whitespace(string))
   # end
 
-  def parse("true", handler, acc), do: handler.do_true(acc)
-  def parse("false", handler, acc), do: handler.do_value(acc)
-  def parse("null", handler, acc), do: handler.do_null(acc)
-
-  # Do we put an error case for zero? if we see it here it will be an error?
-  # that might actually allow us to have the parse_integer and parse_exponent to be the same
-  # or more similar? Though perhaps is less clear what the rules are????
-
   # Leading zeros are prohibited!!
   # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
   def parse(<<@zero, rest::bits>>, _handler, _acc) do
@@ -131,8 +123,12 @@ defmodule Jxon do
   def parse(<<@minus, number::bits>> = original, handler, acc) do
     case parse_integer(number, 0) do
       {end_index, remaining} ->
-        number = :binary.part(number, 0, end_index)
-        parse(remaining, handler, handler.do_negative_number(number, acc))
+        if skip_whitespace(remaining) == "" do
+          number = :binary.part(number, 0, end_index)
+          handler.do_negative_number(number, acc)
+        else
+          {:error, :multiple_bare_values, original}
+        end
 
       {:error, :invalid_number, _problematic_char_index} ->
         {:error, :invalid_number, original}
@@ -143,8 +139,12 @@ defmodule Jxon do
     # TODO change name as we don't parse it we find the end index of it. very different.
     case parse_integer(rest, 1) do
       {end_index, remaining} ->
-        number = :binary.part(original, 0, end_index)
-        parse(remaining, handler, handler.do_positive_number(number, acc))
+        if skip_whitespace(remaining) == "" do
+          number = :binary.part(original, 0, end_index)
+          handler.do_positive_number(number, acc)
+        else
+          {:error, :multiple_bare_values, original}
+        end
 
       {:error, :invalid_number, _problematic_char_index} ->
         # We could call the handler and have it decide what to do here. Alternatively if
@@ -153,6 +153,36 @@ defmodule Jxon do
         {:error, :invalid_number, original}
     end
   end
+
+  # I think we need to detect an escaped string too? And allow that?
+  # Escaped means we act as if the thing escaped is a literal. But what about this case:
+  # json_string = "\"[1, 2, 3, 4]\"" The escaped strings are escaped for the Elixir string
+  # but we want them to be actual quote marks to JSON ...
+
+  def parse(<<@quotation_mark, rest::bits>> = original, handler, acc) do
+    # Here's the thing, we can't just parse until the next quotation mark because there
+    # could be escaped speech marks along the way... To do that we just need to inc/dec
+    # the number of escaped " we see. I guess we could parse until we see a ", see if the
+    # previous value was a \ and if it is continue. If not, halt as we found the end of
+    # our string...?
+
+    # The rules are we can parse a bare string, in which case there should be nothing but
+    # white space after it. If we are later in the context of an array or object, that type
+    # dictates what can come next... I think. Basically `parse` atm is more like parse_value
+
+    {end_index, remaining} = parse_string(rest, 1)
+
+    if skip_whitespace(remaining) == "" do
+      string = :binary.part(original, 0, end_index)
+      handler.do_string(string, acc)
+    else
+      {:error, :multiple_bare_values, original}
+    end
+  end
+
+  def parse("true", handler, acc), do: handler.do_true(acc)
+  def parse("false", handler, acc), do: handler.do_value(acc)
+  def parse("null", handler, acc), do: handler.do_null(acc)
 
   def parse("null" <> rest, handler, acc) do
     if skip_whitespace(rest) == "" do
@@ -176,6 +206,30 @@ defmodule Jxon do
     else
       {:error, :multiple_bare_values, rest}
     end
+  end
+
+  def parse(<<byte::binary-size(1), rest::bits>>, _handler, _acc) do
+    byte |> IO.inspect(limit: :infinity, label: "BYTE1")
+    raise "Error"
+  end
+
+  # It's very possible that this doesn't work? Because do we have to drop the backslash
+  # and just have the quotation mark in there as a literal. I think so...
+  defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, last_character_index) do
+    # @backslash |> IO.inspect(limit: :infinity, label: "BYTE2")
+    # @quotation_mark |> IO.inspect(limit: :infinity, label: "BYTE2")
+    # rest |> IO.inspect(limit: :infinity, label: "rest2")
+    parse_string(rest, last_character_index + 2)
+  end
+
+  defp parse_string(<<@quotation_mark, rest::bits>>, last_character_index) do
+    # rest |> IO.inspect(limit: :infinity, label: "rest3")
+    {last_character_index + 1, rest}
+  end
+
+  defp parse_string(<<byte, rest::bits>>, last_character_index) do
+    # rest |> IO.inspect(limit: :infinity, label: "rest4")
+    parse_string(rest, last_character_index + 1)
   end
 
   # This will return the end index of the number as far as we can see it, erroring if we
