@@ -528,7 +528,7 @@ defmodule JxonTest do
       # "[1,2,3,4]"
       json_string = "\"[1, 2, 3, 4]\""
       acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == "\"[1, 2, 3, 4]\""
+      assert Jxon.parse(json_string, TestHandler, acc) == "[1, 2, 3, 4]"
     end
 
     test "escaped quotation mark in string" do
@@ -537,13 +537,26 @@ defmodule JxonTest do
 
       # So the first \ is escaped, then the " is escaped by elixir which is why we see 3?
       # The thing is Jason doesn't seem to do this so not sure...
-      assert Jxon.parse(json_string, TestHandler, acc) == "\"this is what he said: \\\"no\\\"\""
+      assert Jxon.parse(json_string, TestHandler, acc) == "this is what he said: \\\"no\\\""
     end
 
     test "escapes" do
-      json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
-      acc = []
-      assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
+       acc = []
+       json_string = ~s("\\u2603")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "☃"
+       json_string = ~s("\\u2028\\u2029")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "\u2028\u2029"
+       json_string = ~s("\\uD834\\uDD1E")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "𝄞"
+       json_string = ~s("\\uD834\\uDD1E")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "𝄞"
+       json_string = ~s("\\uD799\\uD799")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "힙힙"
+       json_string = ~s("✔︎")
+       assert Jxon.parse(json_string, TestHandler, acc) ==  "✔︎"
+
+      # json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
+      # assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
     end
   end
 

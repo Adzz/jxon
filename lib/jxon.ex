@@ -65,7 +65,6 @@ defmodule Jxon do
   @carriage_return <<0x0D>>
   # Does this go in white space?
   # @form_feed <<0x66>>
-
   @whitespace [@space, @horizontal_tab, @new_line, @carriage_return]
   @quotation_mark <<0x22>>
   @backslash <<0x5C>>
@@ -170,10 +169,10 @@ defmodule Jxon do
     # white space after it. If we are later in the context of an array or object, that type
     # dictates what can come next... I think. Basically `parse` atm is more like parse_value
 
-    {end_index, remaining} = parse_string(rest, 1)
+    {end_index, remaining} = parse_string(rest, 0, [])
 
     if skip_whitespace(remaining) == "" do
-      string = :binary.part(original, 0, end_index)
+      string = :binary.part(rest, 0, end_index)
       handler.do_string(string, acc)
     else
       {:error, :multiple_bare_values, original}
@@ -213,8 +212,15 @@ defmodule Jxon do
     raise "Error"
   end
 
+  defp parse_string(<<@backslash, @backslash, rest::bits>>, last_character_index) do
+
+  end
+
   # It's very possible that this doesn't work? Because do we have to drop the backslash
-  # and just have the quotation mark in there as a literal. I think so...
+  # and just have the quotation mark in there as a literal. I think so. Which makes it all
+  # a bit more complex because we have to ACCUMULATE which we have managed to avoid up until
+  # now. NOW, we could just let the handler deal with that? do the escaping of strings?
+  # That would make this quick and enable the option to
   defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, last_character_index) do
     # @backslash |> IO.inspect(limit: :infinity, label: "BYTE2")
     # @quotation_mark |> IO.inspect(limit: :infinity, label: "BYTE2")
@@ -224,7 +230,9 @@ defmodule Jxon do
 
   defp parse_string(<<@quotation_mark, rest::bits>>, last_character_index) do
     # rest |> IO.inspect(limit: :infinity, label: "rest3")
-    {last_character_index + 1, rest}
+    # We exclude the speech marks that bracket the string because they become the speech
+    # marks in the Elixir string.
+    {last_character_index, rest}
   end
 
   defp parse_string(<<byte, rest::bits>>, last_character_index) do
