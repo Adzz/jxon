@@ -534,26 +534,51 @@ defmodule JxonTest do
     test "escaped quotation mark in string" do
       json_string = File.read!("/Users/Adz/Projects/jxon/test/fixtures/escapes_string.json")
       acc = []
+      assert Jxon.parse(json_string, TestHandler, acc) == "this is what he said: \"no\""
+    end
 
-      # So the first \ is escaped, then the " is escaped by elixir which is why we see 3?
-      # The thing is Jason doesn't seem to do this so not sure...
-      assert Jxon.parse(json_string, TestHandler, acc) == "this is what he said: \\\"no\\\""
+    test "single backslash error" do
+      acc = []
+      json_string = ~s("\\ ")
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :unescaped_backslash, "\\ \"", ""}
+    end
+
+    test "just a single backslash error" do
+      acc = []
+      json_string = ~s("\\")
+
+      assert Jxon.parse(json_string, TestHandler, acc) ==
+               {:error, :unterminated_string, "\"", "\"\\\""}
+    end
+
+    test ~s("\\"\\\\\\/\\b\\f\\n\\r\\t") do
+      acc = []
+      json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
+      assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
     end
 
     test "escapes" do
-       acc = []
-       json_string = ~s("\\u2603")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "☃"
-       json_string = ~s("\\u2028\\u2029")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "\u2028\u2029"
-       json_string = ~s("\\uD834\\uDD1E")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "𝄞"
-       json_string = ~s("\\uD834\\uDD1E")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "𝄞"
-       json_string = ~s("\\uD799\\uD799")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "힙힙"
-       json_string = ~s("✔︎")
-       assert Jxon.parse(json_string, TestHandler, acc) ==  "✔︎"
+      acc = []
+      # SO. This is basically for when the JSON string is \u2603 which bascially says,
+      # treat everything after the u as an unicode codepoint. Which means when we turn
+      # it into an Elixir string we should actually do that conversion. NOW there is an
+      # argument for saying that that should happen in the handler for string only. Why?
+      # Because then the user is in charge of whether they escape strings or not... and
+      # they can choose to copy the data or not...
+      json_string = ~s("\\u2603")
+      assert Jxon.parse(json_string, TestHandler, acc) == "☃"
+      json_string = ~s("\\u2028\\u2029")
+      assert Jxon.parse(json_string, TestHandler, acc) == "\u2028\u2029"
+      json_string = ~s("\\uD834\\uDD1E")
+      assert Jxon.parse(json_string, TestHandler, acc) == "𝄞"
+      json_string = ~s("\\uD834\\uDD1E")
+      assert Jxon.parse(json_string, TestHandler, acc) == "𝄞"
+      json_string = ~s("\\uD799\\uD799")
+      assert Jxon.parse(json_string, TestHandler, acc) == "힙힙"
+      json_string = ~s("✔︎")
+      assert Jxon.parse(json_string, TestHandler, acc) == "✔︎"
 
       # json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
       # assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)

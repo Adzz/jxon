@@ -90,6 +90,14 @@ defmodule Jxon do
     <<0x39>>
   ]
   @decimal_point <<0x2E>>
+  # Escape next chars
+  @u <<0x75>>
+  @b <<0x62>>
+  @f <<0x66>>
+  @n <<0x6E>>
+  @r <<0x72>>
+  @t <<0x74>>
+
   @doc """
   """
   def parse(<<>>, handler, acc), do: handler.end_of_document(acc)
@@ -169,13 +177,19 @@ defmodule Jxon do
     # white space after it. If we are later in the context of an array or object, that type
     # dictates what can come next... I think. Basically `parse` atm is more like parse_value
 
-    {end_index, remaining} = parse_string(rest, 0, [])
+    case parse_string(rest, []) do
+      {:error, :unescaped_backslash, rest, acc} ->
+        {:error, :unescaped_backslash, rest, IO.iodata_to_binary(acc)}
 
-    if skip_whitespace(remaining) == "" do
-      string = :binary.part(rest, 0, end_index)
-      handler.do_string(string, acc)
-    else
-      {:error, :multiple_bare_values, original}
+      {:error, :unterminated_string, parsed} ->
+        {:error, :unterminated_string, parsed, original}
+
+      {escaped_string, remaining} ->
+        if skip_whitespace(remaining) == "" do
+          handler.do_string(escaped_string, acc)
+        else
+          {:error, :multiple_bare_values, original}
+        end
     end
   end
 
@@ -207,37 +221,63 @@ defmodule Jxon do
     end
   end
 
-  def parse(<<byte::binary-size(1), rest::bits>>, _handler, _acc) do
+  def parse(<<byte::binary-size(1), _rest::bits>>, _handler, _acc) do
     byte |> IO.inspect(limit: :infinity, label: "BYTE1")
     raise "Error"
   end
 
-  defp parse_string(<<@backslash, @backslash, rest::bits>>, last_character_index) do
-
+  defp parse_string(<<@backslash, @backslash, rest::bits>>, acc) do
+    parse_string(rest, [acc | @backslash])
   end
 
-  # It's very possible that this doesn't work? Because do we have to drop the backslash
-  # and just have the quotation mark in there as a literal. I think so. Which makes it all
-  # a bit more complex because we have to ACCUMULATE which we have managed to avoid up until
-  # now. NOW, we could just let the handler deal with that? do the escaping of strings?
-  # That would make this quick and enable the option to
-  defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, last_character_index) do
-    # @backslash |> IO.inspect(limit: :infinity, label: "BYTE2")
-    # @quotation_mark |> IO.inspect(limit: :infinity, label: "BYTE2")
-    # rest |> IO.inspect(limit: :infinity, label: "rest2")
-    parse_string(rest, last_character_index + 2)
+  defp parse_string(<<@backslash, @forwardslash, rest::bits>>, acc) do
+    parse_string(rest, [acc | @forwardslash])
   end
 
-  defp parse_string(<<@quotation_mark, rest::bits>>, last_character_index) do
-    # rest |> IO.inspect(limit: :infinity, label: "rest3")
+  defp parse_string(<<@backslash, @b, rest::bits>>, acc) do
+    parse_string(rest, [acc | '\b'])
+  end
+
+  defp parse_string(<<@backslash, @f, rest::bits>>, acc) do
+    parse_string(rest, [acc | '\f'])
+  end
+
+  defp parse_string(<<@backslash, @n, rest::bits>>, acc) do
+    parse_string(rest, [acc | '\n'])
+  end
+
+  defp parse_string(<<@backslash, @r, rest::bits>>, acc) do
+    parse_string(rest, [acc | '\r'])
+  end
+
+  defp parse_string(<<@backslash, @t, rest::bits>>, acc) do
+    parse_string(rest, [acc | '\t'])
+  end
+
+  defp parse_string(<<@backslash, @u, _rest::bits>>, _acc) do
+    raise "not implemented"
+  end
+
+  defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, acc) do
+    parse_string(rest, [acc | @quotation_mark])
+  end
+
+  defp parse_string(<<@backslash, _rest::bits>> = string, acc) do
+    {:error, :unescaped_backslash, string, acc}
+  end
+
+  defp parse_string(<<@quotation_mark, rest::bits>>, acc) do
     # We exclude the speech marks that bracket the string because they become the speech
     # marks in the Elixir string.
-    {last_character_index, rest}
+    {IO.iodata_to_binary(acc), rest}
   end
 
-  defp parse_string(<<byte, rest::bits>>, last_character_index) do
-    # rest |> IO.inspect(limit: :infinity, label: "rest4")
-    parse_string(rest, last_character_index + 1)
+  defp parse_string(<<byte::binary-size(1), rest::bits>>, acc) do
+    parse_string(rest, [acc | byte])
+  end
+
+  defp parse_string(<<>>, acc) do
+    {:error, :unterminated_string, IO.iodata_to_binary(acc)}
   end
 
   # This will return the end index of the number as far as we can see it, erroring if we
