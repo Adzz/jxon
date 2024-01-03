@@ -1,5 +1,10 @@
 defmodule Jxon do
   @moduledoc """
+
+  TODO: Lexer that just hands start / end indexes to the callbacks. That way the user can
+  decide whether to copy them or not I guess. But it means they would also be completely
+  in charge of string escaping. The we could write functions for that.
+
   An event based JSON parser.
 
   https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
@@ -63,9 +68,9 @@ defmodule Jxon do
   @new_line <<0x0A>>
   # \r
   @carriage_return <<0x0D>>
-  # Does this go in white space?
-  # @form_feed <<0x66>>
-  @whitespace [@space, @horizontal_tab, @new_line, @carriage_return]
+  # \f
+  @form_feed <<0x0C>>
+  @whitespace [@space, @horizontal_tab, @new_line, @carriage_return, @form_feed]
   @quotation_mark <<0x22>>
   @backslash <<0x5C>>
   @forwardslash <<0x2F>>
@@ -143,7 +148,6 @@ defmodule Jxon do
   end
 
   def parse(<<byte::binary-size(1), rest::bits>> = original, handler, acc) when byte in @digits do
-    # TODO change name as we don't parse it we find the end index of it. very different.
     case parse_integer(rest, 1) do
       {end_index, remaining} ->
         if skip_whitespace(remaining) == "" do
@@ -177,16 +181,28 @@ defmodule Jxon do
     # white space after it. If we are later in the context of an array or object, that type
     # dictates what can come next... I think. Basically `parse` atm is more like parse_value
 
-    case parse_string(rest, []) do
+    case find_string_end(rest, 1) do
       {:error, :unescaped_backslash, rest, acc} ->
         {:error, :unescaped_backslash, rest, IO.iodata_to_binary(acc)}
 
       {:error, :unterminated_string, parsed} ->
         {:error, :unterminated_string, parsed, original}
 
-      {escaped_string, remaining} ->
+      {end_index, remaining} ->
         if skip_whitespace(remaining) == "" do
-          handler.do_string(escaped_string, acc)
+          # I guess we could pass a reference or not here? Or even just pass the indexes
+          # to the handler and have them binary_part or not... that might actually be better
+          # then you don't need to pass in options. Dam may have to change to that later.
+          # The only thing is whether that works with streaming data or partial documents.
+          # And you have to pass the original binary around I guess or have it accessible
+          # to different things.
+
+          # I sort of wonder if we could parallelize large json documents by chunking it up
+          # and just start parsing, then as you group together collapse the possibilities
+          # until you are sure on the outcome. Wow. Is that possible? Probably not actually
+          # how to make it fast as that would just be SIMD or whatever.
+          raw_string = :binary.part(original, 0, end_index)
+          handler.do_string(raw_string, acc)
         else
           {:error, :multiple_bare_values, original}
         end
@@ -226,6 +242,22 @@ defmodule Jxon do
     raise "Error"
   end
 
+  defp find_string_end(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
+    find_string_end(rest, end_character_index + 2)
+  end
+
+  defp find_string_end(<<@quotation_mark, rest::bits>>, end_character_index) do
+    {end_character_index + 1, rest}
+  end
+
+  defp find_string_end(<<byte::binary-size(1), rest::bits>>, end_character_index) do
+    find_string_end(rest, end_character_index + 1)
+  end
+
+  defp find_string_end(<<>>, end_character_index) do
+    {:error, :unterminated_string, end_character_index}
+  end
+
   defp parse_string(<<@backslash, @backslash, rest::bits>>, acc) do
     parse_string(rest, [acc | @backslash])
   end
@@ -254,8 +286,8 @@ defmodule Jxon do
     parse_string(rest, [acc | '\t'])
   end
 
-  defp parse_string(<<@backslash, @u, _rest::bits>>, _acc) do
-    raise "not implemented"
+  defp parse_string(<<@backslash, @u, rest::bits>>, acc) do
+    parse_string(rest, [acc | [@backslash, @u]])
   end
 
   defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, acc) do
