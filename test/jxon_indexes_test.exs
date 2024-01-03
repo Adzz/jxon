@@ -42,7 +42,9 @@ defmodule JxonIndexesTest do
       [:binary.part(original_binary, start_index, len) | acc]
     end
 
-    def end_of_document(_original_binary, _end_index, [acc]) do
+    def end_of_document(original_binary, end_index, [acc]) do
+      # This should not be out of range. It shouldn't be short either we could assert on that.
+      :binary.part(original_binary, end_index, 1)
       acc
     end
   end
@@ -216,7 +218,6 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-10920394059687"
     end
 
-    @tag :t
     test "int with error chars after" do
       json_string = "-1;"
       acc = []
@@ -231,6 +232,12 @@ defmodule JxonIndexesTest do
       json_string = "-1e40  "
       acc = []
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-1e40"
+    end
+
+    test "+ve int with exponent" do
+      json_string = "1e40  "
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "1e40"
     end
 
     test "int with capital exponent" do
@@ -281,7 +288,7 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-1.5"
     end
 
-    test "leading 0s are not allowed" do
+    test "leading 0s are not allowed negative decimal" do
       json_string = "-01.5"
       acc = []
 
@@ -289,7 +296,9 @@ defmodule JxonIndexesTest do
                {:error, :leading_zero, 1}
 
       assert :binary.part(json_string, 1, 1) == "0"
+    end
 
+    test "leading 0s are not allowed -ve int" do
       json_string = "-0001"
       acc = []
 
@@ -313,7 +322,7 @@ defmodule JxonIndexesTest do
                {:error, :invalid_fractional_digit, 4}
     end
 
-    test "multiple bare values is wrong?" do
+    test "multiple bare values is wrong -ve ints" do
       json_string = "-1 -2 3 4 5"
       acc = []
 
@@ -321,15 +330,19 @@ defmodule JxonIndexesTest do
                {:error, :multiple_bare_values, 3}
 
       assert :binary.part(json_string, 3, 1) == "-"
+    end
 
-      json_string = "-1.2 . -2.3 \n\t\r"
+    test "multiple bare values is wrong -ve ints invalid char" do
+      json_string = "-1.2 b -2.3 \n\t\r"
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :multiple_bare_values, 5}
+               {:error, :invalid_json_character, 5}
 
-      assert :binary.part(json_string, 5, 1) == "."
+      assert :binary.part(json_string, 5, 1) == "b"
+    end
 
+    test "multiple bare values is wrong -ve ints whitespace" do
       json_string = "-1.2\n-2.3 \n\t\r"
       acc = []
 
@@ -504,14 +517,8 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\\"\\\\\\/\\b\\f\\n\\r\\t"
     end
 
-    test "escapes" do
+    test "unicode escapes don't actually escape, they just return as is" do
       acc = []
-      # SO. This is basically for when the JSON string is \u2603 which bascially says,
-      # treat everything after the u as an unicode codepoint. Which means when we turn
-      # it into an Elixir string we should actually do that conversion. NOW there is an
-      # argument for saying that that should happen in the handler for string only. Why?
-      # Because then the user is in charge of whether they escape strings or not... and
-      # they can choose to copy the data or not...
       json_string = ~s("\\u2603")
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2603"
       json_string = ~s("\\u2028\\u2029")
@@ -524,9 +531,16 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD799\\uD799"
       json_string = ~s("✔︎")
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "✔︎"
+    end
 
-      # json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
-      # assert JxonIndexes.parse(json_string, TestHandler, 0,acc) == ~s("\\/\b\f\n\r\t)
+    test "multiple strings when there shouldn't be" do
+      acc = []
+      json_string = ~s("this is valid " "this is not!")
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :multiple_bare_values, 17}
+
+      assert :binary.part(json_string, 17, 1) == "\""
     end
   end
 

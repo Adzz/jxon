@@ -1,6 +1,8 @@
 defmodule Jxon do
   @moduledoc """
 
+  DEPRECATED - likely replaced by JxonIndexes soon.
+
   TODO: Lexer that just hands start / end indexes to the callbacks. That way the user can
   decide whether to copy them or not I guess. But it means they would also be completely
   in charge of string escaping. The we could write functions for that.

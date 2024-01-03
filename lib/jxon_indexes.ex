@@ -118,11 +118,7 @@ defmodule JxonIndexes do
 
       {end_index, remaining} ->
         acc = handler.do_negative_number(original, current_index, end_index, acc)
-
-        case skip_whitespace(remaining, end_index + 1) do
-          {end_index, ""} -> parse(remaining, original, handler, end_index, acc)
-          {:error, _, _} = error -> error
-        end
+        parse_remaining_whitespace(remaining, end_index + 1, original, acc, handler)
 
       {:error, :invalid_fractional_digit, problematic_char_index} ->
         {:error, :invalid_fractional_digit, problematic_char_index}
@@ -144,11 +140,7 @@ defmodule JxonIndexes do
 
       {end_index, remaining} ->
         acc = handler.do_positive_number(original, current_index, end_index, acc)
-
-        case skip_whitespace(remaining, end_index + 1) do
-          {end_index, ""} -> parse(remaining, original, handler, end_index, acc)
-          {:error, _, _} = error -> error
-        end
+        parse_remaining_whitespace(remaining, end_index + 1, original, acc, handler)
 
       {:error, :invalid_fractional_digit, problematic_char_index} ->
         {:error, :invalid_fractional_digit, problematic_char_index}
@@ -166,14 +158,16 @@ defmodule JxonIndexes do
       {:error, :unterminated_string, problematic_char_index} ->
         {:error, :unterminated_string, problematic_char_index}
 
+      # The end index here is the index one BEFORE the closing '"' because we don't send the
+      # quotes to the handler. which means we + 1 when calling the end of the document.
       {end_index, ""} ->
         acc = handler.do_string(original, current_index + 1, end_index, acc)
-        handler.end_of_document(original, end_index, acc)
+        handler.end_of_document(original, end_index + 1, acc)
 
-      # TODO: Add test ehre for multiple string values erroring!!
       {end_index, remaining} ->
         acc = handler.do_string(original, current_index + 1, end_index, acc)
-        parse(remaining, original, handler, end_index + 1, acc)
+        # Add 1 for the '"' and 1 to be at the char _after_ that.
+        parse_remaining_whitespace(remaining, end_index + 2, original, acc, handler)
     end
   end
 
@@ -198,31 +192,19 @@ defmodule JxonIndexes do
   def parse("null" <> rest, original, handler, current_index, acc) do
     end_index = current_index + 3
     acc = handler.do_null(original, current_index, end_index, acc)
-
-    case skip_whitespace(rest, end_index + 1) do
-      {end_index, ""} -> handler.end_of_document(original, end_index, acc)
-      {:error, _, _} = error -> error
-    end
+    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
   end
 
   def parse("true" <> rest, original, handler, current_index, acc) do
     end_index = current_index + 3
     acc = handler.do_true(original, current_index, end_index, acc)
-
-    case skip_whitespace(rest, end_index + 1) do
-      {end_index, ""} -> handler.end_of_document(original, end_index, acc)
-      {:error, _, _} = error -> error
-    end
+    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
   end
 
   def parse("false" <> rest, original, handler, current_index, acc) do
     end_index = current_index + 4
     acc = handler.do_false(original, current_index, end_index, acc)
-
-    case skip_whitespace(rest, end_index + 1) do
-      {end_index, ""} -> handler.end_of_document(original, end_index, acc)
-      {:error, _, _} = error -> error
-    end
+    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
   end
 
   # If it's whitespace it should be handled in cases above, so the only option if we get
@@ -353,21 +335,36 @@ defmodule JxonIndexes do
     {:error, :invalid_exponent, number_end_index}
   end
 
-  defp skip_whitespace(<<head::binary-size(1), rest::binary>>, current_index)
+  # Call this when you are expecting only whitespace to exist. If there is only whitespace
+  # we call end_of_document with the correct index, if there is something other than whitespace
+  # we return an appropriate error; either multiple bare values or invalid json char.
+  defp parse_remaining_whitespace(
+         <<head::binary-size(1), rest::binary>>,
+         current_index,
+         original,
+         acc,
+         handler
+       )
        when head in @whitespace do
-    skip_whitespace(rest, current_index + 1)
+    parse_remaining_whitespace(rest, current_index + 1, original, acc, handler)
   end
 
-  defp skip_whitespace(<<>>, current_index) do
-    {current_index - 1, ""}
+  defp parse_remaining_whitespace(<<>>, current_index, original, acc, handler) do
+    handler.end_of_document(original, current_index - 1, acc)
   end
 
-  defp skip_whitespace(<<byte::binary-size(1), _rest::bits>>, problematic_char_index)
+  defp parse_remaining_whitespace(
+         <<byte::binary-size(1), _rest::bits>>,
+         problematic_char_index,
+         _original,
+         _acc,
+         _handler
+       )
        when byte in @valid_json_chars do
     {:error, :multiple_bare_values, problematic_char_index}
   end
 
-  defp skip_whitespace(remaining, current_index) do
+  defp parse_remaining_whitespace(remaining, current_index, _original, _acc, _handler) do
     {:error, :invalid_json_character, current_index}
   end
 end

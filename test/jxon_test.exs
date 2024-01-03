@@ -532,7 +532,7 @@ defmodule JxonTest do
     end
 
     test "escaped quotation mark in string" do
-      json_string = File.read!("/Users/Adz/Projects/jxon/test/fixtures/escapes_string.json")
+      json_string = File.read!("./test/fixtures/escapes_string.json")
       acc = []
       assert Jxon.parse(json_string, TestHandler, acc) == "\"this is what he said: \\\"no\\\"\""
     end
@@ -559,29 +559,20 @@ defmodule JxonTest do
       assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
     end
 
-    test "escapes" do
+    test "unicode escapes don't actually escape, they just return as is" do
       acc = []
-      # SO. This is basically for when the JSON string is \u2603 which bascially says,
-      # treat everything after the u as an unicode codepoint. Which means when we turn
-      # it into an Elixir string we should actually do that conversion. NOW there is an
-      # argument for saying that that should happen in the handler for string only. Why?
-      # Because then the user is in charge of whether they escape strings or not... and
-      # they can choose to copy the data or not...
       json_string = ~s("\\u2603")
-      assert Jxon.parse(json_string, TestHandler, acc) == "\"\\u2603\""
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2603"
       json_string = ~s("\\u2028\\u2029")
-      assert Jxon.parse(json_string, TestHandler, acc) == "\"\\u2028\\u2029\""
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2028\\u2029"
       json_string = ~s("\\uD834\\uDD1E")
-      assert Jxon.parse(json_string, TestHandler, acc) == "𝄞"
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
       json_string = ~s("\\uD834\\uDD1E")
-      assert Jxon.parse(json_string, TestHandler, acc) == "𝄞"
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
       json_string = ~s("\\uD799\\uD799")
-      assert Jxon.parse(json_string, TestHandler, acc) == "힙힙"
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD799\\uD799"
       json_string = ~s("✔︎")
-      assert Jxon.parse(json_string, TestHandler, acc) == "✔︎"
-
-      # json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
-      # assert Jxon.parse(json_string, TestHandler, acc) == ~s("\\/\b\f\n\r\t)
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "✔︎"
     end
   end
 
