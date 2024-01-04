@@ -69,6 +69,9 @@ defmodule JxonIndexes do
                     ] ++ @digits ++ @whitespace
   @doc """
   """
+  # we should not have to pass in the current_index ? I wonder if it enables parsing part
+  # of a document though. Like you could split it up and try it, or parse from a specific point
+  # onwards.
   def parse(document, handler, current_index, acc) do
     parse(document, document, handler, current_index, acc)
   end
@@ -91,6 +94,37 @@ defmodule JxonIndexes do
 
   def parse(@carriage_return <> rest, original, handler, current_index, acc) do
     parse(rest, original, handler, current_index + 1, acc)
+  end
+
+  def parse(<<@open_array, rest::bits>>, original, handler, current_index, acc) do
+    acc = handler.start_of_array(original, current_index, acc)
+
+    # Here we need to call parse again. IF it's an error stop and return that.
+    # If it's not then check for a comma, if there is one, call parse again.
+    # if there isn't then we error if there isn't whitespace then a close array.
+    case parse(
+           rest |> IO.inspect(limit: :infinity, label: ""),
+           original,
+           handler,
+           current_index + 1,
+           acc
+         )
+         |> IO.inspect(limit: :infinity, label: "arrrrr") do
+      {:error, _, _} = error -> error
+    end
+
+    # case parse_array(rest, current_index + 1) do
+    #   {end_index, ""} ->
+    #     acc = handler.end_of_array(original, current_index + 1, end_index, acc)
+    #     handler.end_of_document(original, end_index, acc)
+
+    #   {end_index, remaining} ->
+    #     acc = handler.end_of_array(original, current_index + 1, end_index, acc)
+    #     parse_remaining_whitespace(remaining, end_index + 1, original, acc, handler)
+
+    #   {:error, _, _} = error ->
+    #     error
+    # end
   end
 
   # Leading zeros are prohibited!!
@@ -136,10 +170,17 @@ defmodule JxonIndexes do
     case parse_integer(current, current_index) do
       {end_index, ""} ->
         acc = handler.do_positive_number(original, current_index, end_index, acc)
+        # This could be an error if we started in an array and we don't see the closing of it.
+        # This is easy to spot in the handler but I wonder if that puts the error in the wrong place
+        # So can we handle that here without a bunch of complexity? Yes by having other functions
+        # call this and have higher level fns that do something different..
+        # For now I think the end_of_document callback will always have to detect the unclosed
+        # string / object / array.... ????
         handler.end_of_document(original, end_index, acc)
 
       {end_index, remaining} ->
         acc = handler.do_positive_number(original, current_index, end_index, acc)
+        raise "here"
         parse_remaining_whitespace(remaining, end_index + 1, original, acc, handler)
 
       {:error, :invalid_fractional_digit, problematic_char_index} ->
@@ -267,8 +308,10 @@ defmodule JxonIndexes do
     {number_end_index - 1, rest}
   end
 
+  # Here's the thing. This can be stopped by whitespace, a comma a close array char, a colon
+  # a close quote mark. But in different situations that might be an error or not.
   defp parse_integer(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in @whitespace do
+       when byte in [@comma, @quotation_mark, @close_array, @close_object, @colon | @whitespace] do
     {number_end_index - 1, rest}
   end
 
@@ -307,7 +350,7 @@ defmodule JxonIndexes do
   end
 
   defp parse_fractional_digits(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in @whitespace do
+       when byte in [@comma, @quotation_mark, @close_array, @close_object, @colon | @whitespace] do
     # we hit a space so we actually want to end on the char before this one.
     {number_end_index - 1, rest}
   end
@@ -322,7 +365,7 @@ defmodule JxonIndexes do
   end
 
   defp parse_exponent(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in @whitespace do
+       when byte in [@comma, @quotation_mark, @close_array, @close_object, @colon | @whitespace] do
     # we hit a space so we actually want to end on the char before this one.
     {number_end_index - 1, rest}
   end
@@ -345,7 +388,11 @@ defmodule JxonIndexes do
          acc,
          handler
        )
-       when head in @whitespace do
+       # The problem, good sir, is that these are only errors in specific cases. When do we know
+       # which case we are in? The caller knows. at some point. so we can have separate functions,
+       # or we can pass down options, or we can bubble up return values that the different callers
+       # do to.
+       when head in [@comma, @quotation_mark, @close_array, @close_object, @colon | @whitespace] do
     parse_remaining_whitespace(rest, current_index + 1, original, acc, handler)
   end
 

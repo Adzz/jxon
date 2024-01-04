@@ -42,6 +42,25 @@ defmodule JxonIndexesTest do
       [:binary.part(original_binary, start_index, len) | acc]
     end
 
+    def start_of_array(original_binary, start_index, acc) do
+      if :binary.part(original_binary, start_index, 1) != "[" do
+        raise "Array index error"
+      end
+
+      # Here's the million dollar question. How do we represent this?
+      # Each element inside the array exists at the start of the array plus an offset.
+      # Well really they are going to be a list of indexes, one per element. Not fully sure
+      # how much error detection we can do in the lexer vs here.
+      # End of array fn should do what? collapse? Do we even need it? I guess we need to
+      # know when we have started to put the correct thing in the state.
+      [{:array, [start_index]} | acc]
+    end
+
+    def end_of_array(original_binary, end_index, [array | rest] = acc) when is_list(array) do
+      # What do we do here? Reverse the list of course.
+      [Enum.reverse(array) | acc]
+    end
+
     def end_of_document(original_binary, end_index, [acc]) do
       # This should not be out of range. It shouldn't be short either we could assert on that.
       :binary.part(original_binary, end_index, 1)
@@ -50,6 +69,7 @@ defmodule JxonIndexesTest do
   end
 
   describe "bare values" do
+    @describetag :values
     test "an invalid bare value whitespace" do
       json_string = "    banana  "
       acc = []
@@ -208,6 +228,7 @@ defmodule JxonIndexesTest do
   end
 
   describe "negative numbers" do
+    @describetag :neg_ints
     test "parsing negative numbers is good and fine" do
       json_string = "-1"
       acc = []
@@ -354,6 +375,7 @@ defmodule JxonIndexesTest do
   end
 
   describe "positive numbers" do
+    @describetag :pos_ints
     test "numbers with 0s in" do
       json_string = "102030405060708099887654321"
       acc = []
@@ -477,6 +499,7 @@ defmodule JxonIndexesTest do
   end
 
   describe "strings" do
+    @describetag :strings
     test "basic string" do
       # These string escapes are for Elixir not JSON, so the parser just sees it as
       # "[1,2,3,4]"
@@ -518,6 +541,7 @@ defmodule JxonIndexesTest do
     end
 
     test "unicode escapes don't actually escape, they just return as is" do
+      # This enables JCS
       acc = []
       json_string = ~s("\\u2603")
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2603"
@@ -542,16 +566,48 @@ defmodule JxonIndexesTest do
 
       assert :binary.part(json_string, 17, 1) == "\""
     end
+
+    test "a string with numbers in it works" do
+      acc = []
+      json_string = ~s(" one 1 two 2 ")
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == " one 1 two 2 "
+    end
+
+    test "numbers in a string all having fun" do
+      acc = []
+      json_string = ~s("1,2,3,4,5,6")
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "1,2,3,4,5,6"
+    end
   end
 
-  # describe "arrays" do
-  #   test "we can parse a basic array" do
-  #     json_string = "[1, 2, 3, 4]"
-  #     acc = []
-  #     assert JxonIndexes.parse(json_string, TestHandler, 0,acc) == "[1, 2, 3, 4]"
+  describe "arrays" do
+    @describetag :arrays
+    test "open array whitespace and an error is an error" do
+      json_string = "[ b "
+      acc = []
 
-  #   end
-  # end
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 2}
+
+      assert :binary.part(json_string, 2, 1) == "b"
+    end
+
+    test "open array and an error is an error" do
+      json_string = "[b "
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 1}
+
+      assert :binary.part(json_string, 1, 1) == "b"
+    end
+
+    test "array of one number" do
+      json_string = "[1]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    end
+  end
 
   # for f <- File.ls!("/Users/Adz/Projects/jxon/test/test_parsing/") |> Enum.take(1) do
   #   test "#{"/Users/Adz/Projects/jxon/test/test_parsing/" <> f}" do
