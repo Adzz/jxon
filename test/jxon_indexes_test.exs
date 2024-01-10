@@ -3,43 +3,52 @@ defmodule JxonIndexesTest do
 
   defmodule TestHandler do
     @moduledoc """
-
+    TODO eventually experiment with generating a flat list (:array) of values in the source
+    and see if it's efficient to whip through the list to extract values. Need to think about
+    how to flatten nested data but I kind of think you just add a 3rd dimension which is like
+    jump - how many lines to jump to get to the Nth element.... Would love to play with this.
     """
 
     def do_true(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def do_false(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def do_null(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def do_string(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def do_negative_number(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def do_positive_number(original_binary, start_index, end_index, acc) do
       # we add 1 because the indexes are 0 indexed but length isn't.
       len = end_index - start_index + 1
-      [:binary.part(original_binary, start_index, len) | acc]
+      value = :binary.part(original_binary, start_index, len)
+      update_acc(value, acc)
     end
 
     def start_of_array(original_binary, start_index, acc) do
@@ -53,18 +62,31 @@ defmodule JxonIndexesTest do
       # how much error detection we can do in the lexer vs here.
       # End of array fn should do what? collapse? Do we even need it? I guess we need to
       # know when we have started to put the correct thing in the state.
-      [{:array, [start_index]} | acc]
+      [{:array, []} | acc]
     end
 
-    def end_of_array(original_binary, end_index, [array | rest] = acc) when is_list(array) do
+    def end_of_array(original_binary, end_index, [{:array, array} | rest])
+        when is_list(array) do
+      if :binary.part(original_binary, end_index, 1) != "]" do
+        raise "Array index error"
+      end
+
       # What do we do here? Reverse the list of course.
-      [Enum.reverse(array) | acc]
+      [Enum.reverse(array) | rest]
     end
 
     def end_of_document(original_binary, end_index, [acc]) do
       # This should not be out of range. It shouldn't be short either we could assert on that.
       :binary.part(original_binary, end_index, 1)
       acc
+    end
+
+    defp update_acc(value, [{:array, list} | rest]) do
+      [{:array, [value | list]} | rest]
+    end
+
+    defp update_acc(value, acc) do
+      [value | acc]
     end
   end
 
@@ -239,12 +261,32 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-10920394059687"
     end
 
+    test "negative with whitespace is wrong" do
+      json_string = "- 1"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 0}
+
+      assert :binary.part(json_string, 0, 1) == "-"
+    end
+
+    test "negative sign only is wrong" do
+      json_string = "-"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 0}
+
+      assert :binary.part(json_string, 0, 1) == "-"
+    end
+
     test "int with error chars after" do
       json_string = "-1;"
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :invalid_integer, 2}
+               {:error, :invalid_json_character, 2}
 
       assert :binary.part(json_string, 2, 1) == ";"
     end
@@ -340,7 +382,7 @@ defmodule JxonIndexesTest do
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :invalid_fractional_digit, 4}
+               {:error, :invalid_json_character, 4}
     end
 
     test "multiple bare values is wrong -ve ints" do
@@ -394,20 +436,22 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "1.500"
     end
 
-    test "errors for both" do
+    test "errors for +ve integer" do
       json_string = "1;"
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :invalid_integer, 1}
+               {:error, :invalid_json_character, 1}
 
       assert :binary.part(json_string, 1, 1) == ";"
+    end
 
+    test "errors for +ve float" do
       json_string = "1.5;"
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :invalid_fractional_digit, 3}
+               {:error, :invalid_json_character, 3}
 
       assert :binary.part(json_string, 3, 1) == ";"
     end
@@ -452,6 +496,22 @@ defmodule JxonIndexesTest do
                {:error, :invalid_exponent, 3}
 
       assert :binary.part(json_string, 3, 1) == "e"
+    end
+
+    test "exponent error no number after e" do
+      json_string = "15e"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_exponent, 3}
+    end
+
+    test "exponent error no number after E" do
+      json_string = "15E"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_exponent, 3}
     end
 
     test "leading 0s" do
@@ -605,8 +665,125 @@ defmodule JxonIndexesTest do
     test "array of one number" do
       json_string = "[1]"
       acc = []
-      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["1"]
     end
+
+    test "array of one number trialing comma" do
+      json_string = "[1,]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :trailing_comma, 2}
+    end
+
+    # test "array of string" do
+    #   json_string = "[\"1\"]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "array of boolean and nil" do
+    #   json_string = "[true, false, null]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # Error cases as I think of them.
+    # test "unclosed array" do
+    #   json_string = "[1"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "multiple non comma'd elements" do
+    #   json_string = "[1 2]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "unclosed multiple non comma'd elements" do
+    #   json_string = "[1 2"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "just commas" do
+    #   json_string = "[,]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "just commas but more" do
+    #   json_string = "[,,]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "unclosed trailing comma" do
+    #   json_string = "[1,2,"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "trailing comma" do
+    #   json_string = "[1,2,]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # NESTING
+    # test "nested array" do
+    #   json_string = "[[]]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "nested unclosed array" do
+    #   json_string = "[[]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "multiple nested array" do
+    #   json_string = "[[], [1, [3]]]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "nested with whitespace" do
+    #   json_string = "[ [  \n\t ]\n\t\r,[  ] ]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "unclosed array in an object" do
+    #   json_string = "{ "A": [ ], "B": [ [ true ], "thing": [] }"
+    #   json_string = "{ "A": [ ], "B": [ [ true ] }"
+    #   json_string = "{ "A": [ ], "B": [ [ true ] , }"
+    #   json_string = "[ [ true ] , []"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "too many closing arrays" do
+    #   json_string = "[  true ]  ]"
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "start with a closing array." do
+    #   json_string = " ]  ["
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
+
+    # test "valid array but then weird chars" do
+    #   json_string = " [  ] : "
+    #   json_string = " [  ]  } "
+    #   This one is valid.
+    #   json_string = " [  ]"
+
+    #   acc = []
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    # end
   end
 
   # for f <- File.ls!("/Users/Adz/Projects/jxon/test/test_parsing/") |> Enum.take(1) do
