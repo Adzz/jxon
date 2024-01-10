@@ -116,7 +116,7 @@ defmodule JxonIndexes do
   # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
 
   # TODO: test parsing the number 0 which is allowed, of course.
-  def parse(<<@zero, _rest::bits>>, _original, _handler, current_index, acc) do
+  def parse(<<@zero, _rest::bits>>, _original, _handler, current_index, _acc) do
     # Would it be good for handlers to be able do this optionally? Like as an extension
     # allow leading 0s in integers or something. Seems like that would be good... To do
     # that we could call the handler and then case on the return value to decide wither we
@@ -125,7 +125,7 @@ defmodule JxonIndexes do
     {:error, :leading_zero, current_index}
   end
 
-  def parse(<<@minus, @zero, _rest::bits>>, _original, _handler, current_index, acc) do
+  def parse(<<@minus, @zero, _rest::bits>>, _original, _handler, current_index, _acc) do
     # This points to the 0 and not the '-'
     {:error, :leading_zero, current_index + 1}
   end
@@ -152,7 +152,7 @@ defmodule JxonIndexes do
     end
   end
 
-  def parse(<<@minus, _::bits>>, _original, _handler, current_index, acc) do
+  def parse(<<@minus, _::bits>>, _original, _handler, current_index, _acc) do
     # We could special case and point at the whitespace after the minus in the future.
     {:error, :invalid_json_character, current_index}
   end
@@ -209,14 +209,6 @@ defmodule JxonIndexes do
   def parse("null", original, handler, current_index, acc) do
     end_index = current_index + 3
     acc = handler.do_null(original, current_index, end_index, acc)
-    # This is an assumption. In some context that's correct but in others we might want
-    # an error, like unclosed array. The issue then is do we let the handlers figure that
-    # out? If not then we need to have something that calls these functions that we return
-    # the empty list to.
-
-    # To recur we need higher level fn.. and that would have to decide when/if to trigger
-    # this. Then parse array and parse bare value would be able to re-use this but do
-    # different things...
     handler.end_of_document(original, end_index, acc)
   end
 
@@ -240,7 +232,7 @@ defmodule JxonIndexes do
 
   # If it's whitespace it should be handled in cases above, so the only option if we get
   # here is if we are seeing an invalid character.
-  def parse(<<byte::binary-size(1), _rest::bits>>, _original, _handler, current_index, acc) do
+  def parse(<<_byte::binary-size(1), _rest::bits>>, _original, _handler, current_index, _acc) do
     {:error, :invalid_json_character, current_index}
   end
 
@@ -262,7 +254,7 @@ defmodule JxonIndexes do
       {end_index, _rest, depth, _acc} when depth < 0 ->
         {:error, :unopened_array, end_index}
 
-      {end_index, rest, depth, acc} when depth > 0 ->
+      {end_index, rest, depth, _acc} when depth > 0 ->
         case skip_whitespace(rest, end_index) do
           # If we hit any other character here we know there is an error in syntax because
           # a value in an array either needs to be followed by a comma or a close array. The
@@ -282,7 +274,7 @@ defmodule JxonIndexes do
 
   defp parse_array_element(<<@comma, rest::bits>>, original, handler, comma_index, acc, depth) do
     case skip_whitespace(rest, comma_index + 1) do
-      {end_index, <<@close_array, _::bits>>} -> {:error, :trailing_comma, comma_index}
+      {_end_index, <<@close_array, _::bits>>} -> {:error, :trailing_comma, comma_index}
       {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
     end
   end
@@ -431,7 +423,7 @@ defmodule JxonIndexes do
     {end_character_index - 1, rest}
   end
 
-  defp find_string_end(<<byte::binary-size(1), rest::bits>>, end_character_index) do
+  defp find_string_end(<<_byte::binary-size(1), rest::bits>>, end_character_index) do
     find_string_end(rest, end_character_index + 1)
   end
 
@@ -508,7 +500,7 @@ defmodule JxonIndexes do
     {:error, :multiple_bare_values, problematic_char_index}
   end
 
-  defp parse_remaining_whitespace(remaining, current_index, _original, _acc, _handler) do
+  defp parse_remaining_whitespace(_remaining, current_index, _original, _acc, _handler) do
     {:error, :invalid_json_character, current_index}
   end
 end
