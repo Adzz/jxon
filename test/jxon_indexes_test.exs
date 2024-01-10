@@ -56,22 +56,20 @@ defmodule JxonIndexesTest do
         raise "Array index error"
       end
 
-      # Here's the million dollar question. How do we represent this?
-      # Each element inside the array exists at the start of the array plus an offset.
-      # Well really they are going to be a list of indexes, one per element. Not fully sure
-      # how much error detection we can do in the lexer vs here.
-      # End of array fn should do what? collapse? Do we even need it? I guess we need to
-      # know when we have started to put the correct thing in the state.
-      [{:array, []} | acc]
+      [[] | acc]
     end
 
-    def end_of_array(original_binary, end_index, [{:array, array} | rest])
-        when is_list(array) do
+    def end_of_array(original_binary, end_index, [array, parent | rest])
+        when is_list(array) and is_list(parent) do
       if :binary.part(original_binary, end_index, 1) != "]" do
         raise "Array index error"
       end
 
-      # What do we do here? Reverse the list of course.
+      # when do we collapse into the thing below? Always?
+      [[Enum.reverse(array) | parent] | rest]
+    end
+
+    def end_of_array(_original_binary, _end_index, [array | rest]) do
       [Enum.reverse(array) | rest]
     end
 
@@ -81,8 +79,8 @@ defmodule JxonIndexesTest do
       acc
     end
 
-    defp update_acc(value, [{:array, list} | rest]) do
-      [{:array, [value | list]} | rest]
+    defp update_acc(value, [list | rest]) when is_list(list) do
+      [[value | list] | rest]
     end
 
     defp update_acc(value, acc) do
@@ -674,100 +672,130 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :trailing_comma, 2}
     end
 
-    # test "array of string" do
-    #   json_string = "[\"1\"]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "array of string" do
+      json_string = "[\"1\"]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["1"]
+    end
 
-    # test "array of boolean and nil" do
-    #   json_string = "[true, false, null]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "array of boolean and nil" do
+      json_string = "[true, false, null]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["true", "false", "null"]
+    end
 
     # Error cases as I think of them.
-    # test "unclosed array" do
-    #   json_string = "[1"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "unclosed array" do
+      json_string = "[1"
+      acc = []
 
-    # test "multiple non comma'd elements" do
-    #   json_string = "[1 2]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+      assert {:error, :missing_comma, index} = JxonIndexes.parse(json_string, TestHandler, 0, acc)
 
-    # test "unclosed multiple non comma'd elements" do
-    #   json_string = "[1 2"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+      assert index == 0
+      assert :binary.part(json_string, index, 1) == "["
+    end
 
-    # test "just commas" do
-    #   json_string = "[,]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "multiple non comma'd elements" do
+      json_string = "[1 2]"
+      acc = []
 
-    # test "just commas but more" do
-    #   json_string = "[,,]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+      assert {:error, :missing_comma, index} = JxonIndexes.parse(json_string, TestHandler, 0, acc)
 
-    # test "unclosed trailing comma" do
-    #   json_string = "[1,2,"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+      assert index == 2
+      assert :binary.part(json_string, index, 1) == " "
+    end
 
-    # test "trailing comma" do
-    #   json_string = "[1,2,]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "unclosed multiple non comma'd elements" do
+      json_string = "[1 2"
+      acc = []
+      assert {:error, :missing_comma, index} = JxonIndexes.parse(json_string, TestHandler, 0, acc)
+      assert index == 2
+      assert :binary.part(json_string, index, 1) == " "
+    end
+
+    test "just commas" do
+      json_string = "[,]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :trailing_comma, 1}
+      assert :binary.part(json_string, 1, 1) == ","
+    end
+
+    test "double comma" do
+      json_string = "[,,,,,,]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :double_comma, 2}
+      assert :binary.part(json_string, 2, 1) == ","
+    end
+
+    test "unclosed trailing comma" do
+      json_string = "[1,2  , "
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :unclosed_array, 7}
+      assert :binary.part(json_string, 7, 1) == " "
+    end
+
+    test "trailing comma" do
+      json_string = "[1,2,]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :trailing_comma, 4}
+      assert :binary.part(json_string, 4, 1) == ","
+    end
 
     # NESTING
-    # test "nested array" do
-    #   json_string = "[[]]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "nested array" do
+      json_string = "[[]]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[]]
+    end
 
-    # test "nested unclosed array" do
-    #   json_string = "[[]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "nested unclosed array" do
+      json_string = "[[]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :missing_comma, 2}
+      assert :binary.part(json_string, 2, 1) == "]"
+    end
 
-    # test "multiple nested array" do
-    #   json_string = "[[], [1, [3]]]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "multiple nested array" do
+      json_string = "[[], [1, [3]]]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[], ["1", ["3"]]]
+    end
 
-    # test "nested with whitespace" do
-    #   json_string = "[ [  \n\t ]\n\t\r,[  ] ]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "nested with whitespace" do
+      json_string = "[ [  \n\t ]\n\t\r,[  ] ]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[], []]
+    end
 
-    # test "unclosed array in an object" do
-    #   json_string = "{ "A": [ ], "B": [ [ true ], "thing": [] }"
-    #   json_string = "{ "A": [ ], "B": [ [ true ] }"
-    #   json_string = "{ "A": [ ], "B": [ [ true ] , }"
-    #   json_string = "[ [ true ] , []"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "unclosed array in an object" do
+      # json_string = "{ "A": [ ], "B": [ [ true ], "thing": [] }"
+      # json_string = "{ "A": [ ], "B": [ [ true ] }"
+      # json_string = "{ "A": [ ], "B": [ [ true ] , }"
+      json_string = "[ [ true ] , []"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :missing_comma, 14}
+      assert :binary.part(json_string, 14, 1) == "]"
+    end
 
-    # test "too many closing arrays" do
-    #   json_string = "[  true ]  ]"
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "too many closing arrays" do
+      json_string = "[  true ]  ]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 11}
+
+      assert :binary.part(json_string, 11, 1) == "]"
+    end
+
+    test "unopenedarray " do
+      json_string = "[  true ],  ]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_json_character, 10}
+
+      assert :binary.part(json_string, 10, 1) == "]"
+    end
 
     # test "start with a closing array." do
     #   json_string = " ]  ["
