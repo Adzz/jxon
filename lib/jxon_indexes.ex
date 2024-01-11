@@ -227,7 +227,6 @@ defmodule JxonIndexes do
   # here is if we are seeing an invalid character.
   def parse(<<_byte::binary-size(1), _rest::bits>>, _original, _handler, current_index, _acc) do
     {:error, :invalid_json_character, current_index}
-    |> IO.inspect(limit: :infinity, label: "qqqqqqqq")
   end
 
   # We don't check for open array because the caller already did that.
@@ -236,33 +235,9 @@ defmodule JxonIndexes do
     acc = handler.start_of_array(original, current_index - 1, acc)
 
     case parse_array_element(array_contents, original, handler, current_index, acc, depth) do
-      {:error, _, _} = error ->
-        error
-
-      {end_index, <<>> = rest, 0, acc} ->
-        {end_index - 1, rest, acc}
-
-      {end_index, rest, 0, acc} ->
-        {end_index, rest, acc}
-
-      {end_index, _rest, depth, _acc} when depth < 0 ->
-        raise "ohno"
-        {:error, :unopened_array, end_index}
-
-      {end_index, rest, depth, _acc} when depth > 0 ->
-        case skip_whitespace(rest, end_index) do
-          # If we hit any other character here we know there is an error in syntax because
-          # a value in an array either needs to be followed by a comma or a close array. The
-          # close_array will have been handled in parse_array_element fn.
-          {end_index, ""} ->
-            {:error, :unclosed_array, end_index}
-
-          {end_index, <<byte::binary-size(1), _::bits>>} when byte in @valid_json_chars ->
-            {:error, :invalid_array_element, end_index}
-
-          {end_index, _rest} ->
-            {:error, :invalid_json_character, end_index}
-        end
+      {:error, _, _} = error -> error
+      {end_index, <<>> = rest, acc} -> {end_index - 1, rest, acc}
+      {end_index, rest, acc} -> {end_index, rest, acc}
     end
   end
 
@@ -286,7 +261,7 @@ defmodule JxonIndexes do
     new_depth = depth - 1
 
     if new_depth == 0 do
-      {current_index + 1, rest, new_depth, acc}
+      {current_index + 1, rest, acc}
     else
       case parse_comma(rest, current_index + 1) do
         {:error, _, _} = error ->
@@ -369,8 +344,7 @@ defmodule JxonIndexes do
     case parse_number(json, current_index) do
       {end_index, rest} ->
         acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
-        # It needs to be either a comma or an end array if it's an end array we want to decrement
-        # depth. We can just let the recursion handle that though?
+
         case parse_comma(rest, end_index) do
           {:error, _, _} = error -> error
           {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
@@ -381,7 +355,6 @@ defmodule JxonIndexes do
     end
   end
 
-  # TODO add a string case in here too.
   defp parse_array_element(<<@t, rest::bits>>, original, handler, start_index, acc, depth) do
     case parse_true(rest, start_index + 1) do
       {:error, _, _} = error ->
@@ -440,11 +413,15 @@ defmodule JxonIndexes do
   end
 
   defp parse_array_element(<<>>, _original, _handler, end_index, acc, depth) do
-    {end_index - 1, "", depth, acc}
+    if depth > 0 do
+      {:error, :unclosed_array, end_index - 1}
+    else
+      {end_index - 1, "", acc}
+    end
   end
 
   defp parse_array_element(_rest, _original, _handler, index, _acc, _depth) do
-    {:error, :invalid_json_character, index} |> IO.inspect(limit: :infinity, label: "k??")
+    {:error, :invalid_json_character, index}
   end
 
   defp parse_comma(rest, end_index) do
@@ -508,8 +485,6 @@ defmodule JxonIndexes do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
-  # We know if we get here we saw a valid digit. So we can look for exponents and more digits
-  # right away.
   def parse_number(json, index) do
     case parse_digits(json, index) do
       {index, <<@decimal_point, rest::bits>>} -> parse_fractional_digits(rest, index + 1)
@@ -577,8 +552,7 @@ defmodule JxonIndexes do
     {:error, :multiple_bare_values, problematic_char_index}
   end
 
-  defp parse_remaining_whitespace(remaining, current_index, _original, _acc, _handler) do
-    remaining |> IO.inspect(limit: :infinity, label: "aaaaaaaa")
+  defp parse_remaining_whitespace(_rest, current_index, _original, _acc, _handler) do
     {:error, :invalid_json_character, current_index}
   end
 end

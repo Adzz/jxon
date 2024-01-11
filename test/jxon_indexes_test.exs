@@ -787,14 +787,24 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 11, 1) == "]"
     end
 
-    test "unopenedarray " do
+    test "unopened array example" do
+      json_string = "[ [], ] ]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :trailing_comma, 4}
+
+      assert :binary.part(json_string, 4, 1) == ","
+    end
+
+    test "unopened array is really just an errant comma" do
       json_string = "[  true ],  ]"
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :invalid_json_character, 10}
+               {:error, :invalid_json_character, 9}
 
-      assert :binary.part(json_string, 10, 1) == "]"
+      assert :binary.part(json_string, 9, 1) == ","
     end
 
     # test "start with a closing array." do
