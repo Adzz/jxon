@@ -40,6 +40,8 @@ defmodule JxonIndexes do
     <<0x38>>,
     <<0x39>>
   ]
+  @exp <<0x65>>
+  @exp_capital <<0x45>>
   @all_digits [@zero | @digits]
   @decimal_point <<0x2E>>
   # Escape next chars
@@ -72,19 +74,8 @@ defmodule JxonIndexes do
     handler.end_of_document(original, current_index, acc)
   end
 
-  def parse(@space <> rest, original, handler, current_index, acc) do
-    parse(rest, original, handler, current_index + 1, acc)
-  end
-
-  def parse(@horizontal_tab <> rest, original, handler, current_index, acc) do
-    parse(rest, original, handler, current_index + 1, acc)
-  end
-
-  def parse(@new_line <> rest, original, handler, current_index, acc) do
-    parse(rest, original, handler, current_index + 1, acc)
-  end
-
-  def parse(@carriage_return <> rest, original, handler, current_index, acc) do
+  def parse(<<head::binary-size(1), rest::binary>>, original, handler, current_index, acc)
+      when head in @whitespace do
     parse(rest, original, handler, current_index + 1, acc)
   end
 
@@ -103,17 +94,26 @@ defmodule JxonIndexes do
   # Leading zeros are prohibited!!
   # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
 
-  # TODO: test parsing the number 0 which is allowed, of course.
-  def parse(<<@zero, _rest::bits>>, _original, _handler, current_index, _acc) do
-    # Would it be good for handlers to be able do this optionally? Like as an extension
-    # allow leading 0s in integers or something. Seems like that would be good... To do
-    # that we could call the handler and then case on the return value to decide wither we
-    # continue or not. In reality we could do that anyway everywhere we call the handler and
-    # have a haltable / continueable json parser. We will circle back to this.
+  # if it's 0 followed by a non digit then it's allowed? If it's followed by a digit it's not
+  def parse(
+        <<@zero, next::binary-size(1), _rest::bits>>,
+        _original,
+        _handler,
+        current_index,
+        _acc
+      )
+      when next in @all_digits do
     {:error, :leading_zero, current_index}
   end
 
-  def parse(<<@minus, @zero, _rest::bits>>, _original, _handler, current_index, _acc) do
+  def parse(
+        <<@minus, @zero, next::binary-size(1), _rest::bits>>,
+        _original,
+        _handler,
+        current_index,
+        _acc
+      )
+      when next in @all_digits do
     # This points to the 0 and not the '-'
     {:error, :leading_zero, current_index + 1}
   end
@@ -125,7 +125,7 @@ defmodule JxonIndexes do
         current_index,
         acc
       )
-      when digit in @digits do
+      when digit in @all_digits do
     case parse_number(number, current_index + 2) do
       {end_index, ""} ->
         acc = handler.do_negative_number(original, current_index, end_index, acc)
@@ -140,13 +140,13 @@ defmodule JxonIndexes do
     end
   end
 
+  # Do we need this case? what is it?
   def parse(<<@minus, _::bits>>, _original, _handler, current_index, _acc) do
-    # We could special case and point at the whitespace after the minus in the future.
     {:error, :invalid_json_character, current_index}
   end
 
   def parse(<<byte::binary-size(1), rest::bits>>, original, handler, current_index, acc)
-      when byte in @digits do
+      when byte in @all_digits do
     case parse_number(rest, current_index + 1) do
       {end_index, ""} ->
         acc = handler.do_positive_number(original, current_index, end_index, acc)
@@ -338,6 +338,54 @@ defmodule JxonIndexes do
   end
 
   defp parse_array_element(
+         <<@zero, next::binary-size(1), _rest::bits>>,
+         _original,
+         _handler,
+         current_index,
+         _acc,
+         _depth
+       )
+       when next in @all_digits do
+    {:error, :leading_zero, current_index}
+  end
+
+  defp parse_array_element(
+         <<@minus, @zero, next::binary-size(1), _rest::bits>>,
+         _original,
+         _handler,
+         current_index,
+         _acc,
+         _depth
+       )
+       when next in @all_digits do
+    # This points to the 0 and not the '-'
+    {:error, :leading_zero, current_index + 1}
+  end
+
+  defp parse_array_element(
+         <<@minus, digit::binary-size(1), number::bits>>,
+         original,
+         handler,
+         current_index,
+         acc,
+         depth
+       )
+       when digit in @all_digits do
+    case parse_number(number, current_index + 2) do
+      {end_index, rest} ->
+        acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
+
+        case parse_comma(rest, end_index) do
+          {:error, _, _} = error -> error
+          {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
+        end
+
+      {:error, _, _} = error ->
+        error
+    end
+  end
+
+  defp parse_array_element(
          <<byte::binary-size(1), _::bits>> = json,
          original,
          handler,
@@ -345,7 +393,7 @@ defmodule JxonIndexes do
          acc,
          depth
        )
-       when byte in @digits do
+       when byte in @all_digits do
     case parse_number(json, current_index) do
       {end_index, rest} ->
         acc = handler.do_positive_number(original, current_index, end_index - 1, acc)

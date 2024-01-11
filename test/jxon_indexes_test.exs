@@ -444,6 +444,42 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 1, 1) == ";"
     end
 
+    test "0 is allowed" do
+      json_string = "0"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "0"
+    end
+
+    test "0exp is allowed" do
+      json_string = "0e1"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "0e1"
+    end
+
+    test "0exp + is allowed" do
+      json_string = "0e+1"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "0e+1"
+    end
+
+    test "0exp - is allowed" do
+      json_string = "0e-1"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "0e-1"
+    end
+
+    test "0exp error is allowed" do
+      json_string = "0e"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :invalid_exponent, 2}
+    end
+
+    test "-0 is allowed" do
+      json_string = "-0"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-0"
+    end
+
     test "errors for +ve float" do
       json_string = "1.5;"
       acc = []
@@ -700,21 +736,6 @@ defmodule JxonIndexesTest do
              ]
     end
 
-    # This has to be "unclosed array" because we know we are at the end
-    # and depth is not 0. There is no missing comma.
-
-    # But there are multiple possibilities. Is it missing a comma? Not if it's
-    # the last element in the list.
-    # "[1"
-    # This is also unclosed array.
-    # "[1,"
-    # This has to be missing comma ie multiple bare values
-    # "[1 2]"
-    # leading comma
-    # "[,1, 2]"
-    # trailing comma
-    # "[1, 2,]"
-
     # Error cases as I think of them.
     test "unclosed array" do
       json_string = "[1"
@@ -837,6 +858,46 @@ defmodule JxonIndexesTest do
                {:error, :multiple_bare_values, 3}
 
       assert :binary.part(json_string, 3, 1) == "["
+    end
+
+    test "leading 0 integer" do
+      json_string = "[001]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :leading_zero, 1}
+
+      assert :binary.part(json_string, 1, 1) == "0"
+    end
+
+    test "leading 0 negative integer" do
+      json_string = "[-001]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :leading_zero, 2}
+
+      assert :binary.part(json_string, 2, 1) == "0"
+    end
+
+    test "0 is okay?" do
+      json_string = "[0]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["0"]
+    end
+
+    test "minus 0 is unhinged but fine I guess? What even are numbers" do
+      json_string = "[-0]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["-0"]
+    end
+
+    test "minus 0 exp is unhinged but fine I guess? What even are numbers" do
+      json_string = "[-0e+1]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["-0e+1"]
     end
 
     test "too many closing arrays" do
