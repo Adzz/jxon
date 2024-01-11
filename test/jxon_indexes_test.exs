@@ -807,11 +807,11 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 9, 1) == ","
     end
 
-    # test "start with a closing array." do
-    #   json_string = " ]  ["
-    #   acc = []
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
-    # end
+    test "start with a closing array." do
+      json_string = " ]  ["
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "[1]"
+    end
 
     # test "valid array but then weird chars" do
     #   json_string = " [  ] : "
