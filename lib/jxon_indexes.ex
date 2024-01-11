@@ -49,25 +49,16 @@ defmodule JxonIndexes do
   @n <<0x6E>>
   @r <<0x72>>
   @t <<0x74>>
-  @valid_json_chars [
-                      @decimal_point,
+  @value_indicators [
                       @quotation_mark,
-                      @backslash,
-                      @forwardslash,
-                      @comma,
-                      @colon,
                       @open_array,
-                      # @close_array,
                       @open_object,
-                      # @close_object,
-                      @plus,
                       @minus,
                       @zero,
-                      # f n and t are for the start of false, true and null
                       @f,
                       @n,
                       @t
-                    ] ++ @digits ++ @whitespace
+                    ] ++ @digits
   @doc """
   """
   # we should not have to pass in the current_index ? I wonder if it enables parsing part
@@ -100,8 +91,12 @@ defmodule JxonIndexes do
   def parse(<<@open_array, rest::bits>>, original, handler, current_index, acc) do
     # Last arg is depth.
     case parse_array(rest, original, handler, current_index + 1, acc, 1) do
-      {:error, _, _} = error -> error
-      {end_index, rest, acc} -> parse(rest, original, handler, end_index, acc)
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest, acc} ->
+        # acc = parse(rest, original, handler, end_index, acc)
+        parse_remaining_whitespace(rest, end_index, original, acc, handler)
     end
   end
 
@@ -234,10 +229,16 @@ defmodule JxonIndexes do
     # current index points to head of array_contents, we want the char before ie the '['
     acc = handler.start_of_array(original, current_index - 1, acc)
 
-    case parse_array_element(array_contents, original, handler, current_index, acc, depth) do
-      {:error, _, _} = error -> error
-      {end_index, <<>> = rest, acc} -> {end_index - 1, rest, acc}
-      {end_index, rest, acc} -> {end_index, rest, acc}
+    case skip_whitespace(array_contents, current_index) do
+      {end_index, <<@comma, _::bits>>} ->
+        {:error, :leading_comma, end_index}
+
+      {end_index, rest} ->
+        case parse_array_element(rest, original, handler, end_index, acc, depth) do
+          {:error, _, _} = error -> error
+          {end_index, <<>> = rest, acc} -> {end_index - 1, rest, acc}
+          {end_index, rest, acc} -> {end_index, rest, acc}
+        end
     end
   end
 
@@ -275,7 +276,11 @@ defmodule JxonIndexes do
 
   defp parse_array_element(<<@open_array, rest::bits>>, original, handler, index, acc, depth) do
     acc = handler.start_of_array(original, index, acc)
-    parse_array_element(rest, original, handler, index + 1, acc, depth + 1)
+
+    case skip_whitespace(rest, index + 1) do
+      {end_index, <<@comma, _::bits>>} -> {:error, :leading_comma, end_index}
+      {index, rest} -> parse_array_element(rest, original, handler, index, acc, depth + 1)
+    end
   end
 
   defp parse_array_element(
@@ -400,6 +405,14 @@ defmodule JxonIndexes do
     end
   end
 
+  defp parse_array_element(<<>>, _original, _handler, end_index, acc, depth) do
+    if depth > 0 do
+      {:error, :unclosed_array, end_index - 1}
+    else
+      {end_index - 1, "", acc}
+    end
+  end
+
   defp parse_array_element(
          <<byte::binary-size(1), _::bits>>,
          _original,
@@ -408,16 +421,8 @@ defmodule JxonIndexes do
          _acc,
          _depth
        )
-       when byte in @valid_json_chars do
-    {:error, :invalid_array_element, problematic_char_index}
-  end
-
-  defp parse_array_element(<<>>, _original, _handler, end_index, acc, depth) do
-    if depth > 0 do
-      {:error, :unclosed_array, end_index - 1}
-    else
-      {end_index - 1, "", acc}
-    end
+       when byte in @value_indicators do
+    {:error, :multiple_bare_values, problematic_char_index}
   end
 
   defp parse_array_element(_rest, _original, _handler, index, _acc, _depth) do
@@ -430,8 +435,20 @@ defmodule JxonIndexes do
       {end_index, <<@close_array, _rest::bits>> = json} -> {end_index, json}
       # When is it a missing comma and when is it a missing close array? Visually [[] is
       # the latter, but the first error we see is the missing comma. Is there any way to
-      # disambiguate the two?
-      {end_index, _rest} -> {:error, :missing_comma, end_index - 1}
+      # disambiguate the two? Is it just always missing close array? It's a but subjective.
+
+      # Also it would be good to track the index of the open array that needs closing, we
+      # could do that if we make the depth a tuple of {starting_index, depth} ? Then we'd
+      # need to update keep a stack of open bracket indexes which isn't ideal...
+
+      # Is it more useful to point to where we think the close needs to be? Sort of yes
+      # But.. you'd need to make room for it in the original so it might be confusing?
+
+      # Perhaps the only way to see if it's "missing comma" is to look for a next element?
+      # if there is a closing bracket then it would mean missing comma, otherwise it's unclosed array
+      {end_index, ""} -> {:error, :unclosed_array, end_index - 1}
+      # multiple bare values would also be a good error.
+      {end_index, _rest} -> {:error, :multiple_bare_values, end_index}
     end
   end
 
@@ -548,7 +565,7 @@ defmodule JxonIndexes do
          _acc,
          _handler
        )
-       when byte in @valid_json_chars do
+       when byte in @value_indicators do
     {:error, :multiple_bare_values, problematic_char_index}
   end
 
