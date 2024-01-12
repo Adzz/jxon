@@ -140,11 +140,6 @@ defmodule JxonIndexes do
     end
   end
 
-  # Do we need this case? what is it?
-  def parse(<<@minus, _::bits>>, _original, _handler, current_index, _acc) do
-    {:error, :invalid_json_character, current_index}
-  end
-
   def parse(<<byte::binary-size(1), rest::bits>>, original, handler, current_index, acc)
       when byte in @all_digits do
     case parse_number(rest, current_index + 1) do
@@ -552,9 +547,17 @@ defmodule JxonIndexes do
 
   def parse_number(json, index) do
     case parse_digits(json, index) do
-      {index, <<@decimal_point, rest::bits>>} -> parse_fractional_digits(rest, index + 1)
-      {index, <<byte, rest::bits>>} when byte in 'eE' -> parse_exponent(rest, index + 1)
-      {index, rest} -> {index, rest}
+      {index, <<@decimal_point, byte::binary-size(1), rest::bits>>} when byte in @all_digits ->
+        parse_fractional_digits(rest, index + 2)
+
+      {index, <<@decimal_point, _rest::bits>>} ->
+        {:error, :invalid_decimal_number, index + 1}
+
+      {index, <<byte, rest::bits>>} when byte in 'eE' ->
+        parse_exponent(rest, index + 1)
+
+      {index, rest} ->
+        {index, rest}
     end
   end
 

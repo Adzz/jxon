@@ -295,6 +295,36 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "-1e40"
     end
 
+    test " 2.e3 is an error" do
+      json_string = "2.e3  "
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
+
+      assert :binary.part(json_string, 2, 1) == "e"
+    end
+
+    test " 2. is an error" do
+      json_string = "2.    "
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
+
+      assert :binary.part(json_string, 2, 1) == " "
+    end
+
+    test " 2.+ is an error" do
+      json_string = "2.+    "
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
+
+      assert :binary.part(json_string, 2, 1) == "+"
+    end
+
     test "+ve int with exponent" do
       json_string = "1e40  "
       acc = []
@@ -896,7 +926,6 @@ defmodule JxonIndexesTest do
     test "minus 0 exp is unhinged but fine I guess? What even are numbers" do
       json_string = "[-0e+1]"
       acc = []
-
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["-0e+1"]
     end
 
@@ -949,14 +978,61 @@ defmodule JxonIndexesTest do
 
       assert :binary.part(json_string, 6, 1) == ":"
     end
+
+    test "empty string array" do
+      json_string = "[\"\"]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [""]
+    end
+
+    test " unescaped tab " do
+      fp = "./test/test_parsing/n_string_unescaped_tab.json"
+      json_string = File.read!(fp)
+      acc = []
+      # Apparently this is meant to error?
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == ["\t"]
+    end
+
+    test "./test/test_parsing/n_structure_100000_opening_arrays.json" do
+      fp = "./test/test_parsing/n_structure_100000_opening_arrays.json"
+      json_string = File.read!(fp)
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unclosed_array, 99999}
+    end
   end
 
-  # for f <- File.ls!("/Users/Adz/Projects/jxon/test/test_parsing/") |> Enum.take(1) do
-  #   test "#{"/Users/Adz/Projects/jxon/test/test_parsing/" <> f}" do
-  #     fp = "/Users/Adz/Projects/jxon/test/test_parsing/" <> unquote(f)
-  #     json_string = File.read!(fp) |> IO.inspect(limit: :infinity, label: "ss")
-  #     acc = []
-  #     assert JxonIndexes.parse(json_string, TestHandler, 0,acc) == 1
+  # describe "yes cases" do
+  #   for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
+  #     test "#{"./test/test_parsing/" <> f}" do
+  #       fp = "./test/test_parsing/" <> unquote(f)
+  #       json_string = File.read!(fp)
+  #       acc = []
+  #       refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
+  #     end
+  #   end
+  # end
+
+  # describe "i for optional" do
+  #   for "i_" <> _ = f <- File.ls!("./test/test_parsing/") do
+  #     test "#{"./test/test_parsing/" <> f}" do
+  #       fp = "./test/test_parsing/" <> unquote(f)
+  #       json_string = File.read!(fp)
+  #       acc = []
+  #       refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
+  #     end
+  #   end
+  # end
+
+  # describe "no cases" do
+  #   for "n_" <> _ = f <- File.ls!("./test/test_parsing/") do
+  #     test "#{"./test/test_parsing/" <> f}" do
+  #       fp = "./test/test_parsing/" <> unquote(f)
+  #       json_string = File.read!(fp)
+  #       acc = []
+  #       assert match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
+  #     end
   #   end
   # end
 end
