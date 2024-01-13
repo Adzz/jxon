@@ -166,40 +166,37 @@ defmodule JxonIndexes do
     end
   end
 
-  def parse("true", original, handler, current_index, acc) do
-    end_index = current_index + 3
-    acc = handler.do_true(original, current_index, end_index, acc)
-    handler.end_of_document(original, end_index, acc)
+  def parse(<<@t, rest::bits>>, original, handler, start_index, acc) do
+    case parse_true(rest, start_index + 1) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest} ->
+        acc = handler.do_true(original, start_index, end_index - 1, acc)
+        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+    end
   end
 
-  def parse("false", original, handler, current_index, acc) do
-    end_index = current_index + 4
-    acc = handler.do_false(original, current_index, end_index, acc)
-    handler.end_of_document(original, end_index, acc)
+  def parse(<<@f, rest::bits>>, original, handler, start_index, acc) do
+    case parse_false(rest, start_index + 1) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest} ->
+        acc = handler.do_true(original, start_index, end_index - 1, acc)
+        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+    end
   end
 
-  def parse("null", original, handler, current_index, acc) do
-    end_index = current_index + 3
-    acc = handler.do_null(original, current_index, end_index, acc)
-    handler.end_of_document(original, end_index, acc)
-  end
+  def parse(<<@n, rest::bits>>, original, handler, start_index, acc) do
+    case parse_null(rest, start_index + 1) do
+      {:error, _, _} = error ->
+        error
 
-  def parse("null" <> rest, original, handler, current_index, acc) do
-    end_index = current_index + 3
-    acc = handler.do_null(original, current_index, end_index, acc)
-    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
-  end
-
-  def parse("true" <> rest, original, handler, current_index, acc) do
-    end_index = current_index + 3
-    acc = handler.do_true(original, current_index, end_index, acc)
-    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
-  end
-
-  def parse("false" <> rest, original, handler, current_index, acc) do
-    end_index = current_index + 4
-    acc = handler.do_false(original, current_index, end_index, acc)
-    parse_remaining_whitespace(rest, end_index + 1, original, acc, handler)
+      {end_index, rest} ->
+        acc = handler.do_null(original, start_index, end_index - 1, acc)
+        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+    end
   end
 
   # If it's whitespace it should be handled in cases above, so the only option if we get
@@ -208,7 +205,7 @@ defmodule JxonIndexes do
     {:error, :invalid_json_character, current_index}
   end
 
-  defp parse_object(object_contents, original, handler, current_index, acc, depth) do
+  defp parse_object(object_contents, original, handler, current_index, acc, _depth) do
     acc = handler.start_of_object(original, current_index - 1, acc)
     # case skip_whitespace(array_contents, current_index) do
     # The next valid chars are: close object, quotation_mark. Everything else is an error
@@ -502,12 +499,12 @@ defmodule JxonIndexes do
 
   defp parse_comma(rest, index) do
     case skip_whitespace(rest, index) do
-      {end_index, <<@comma, rest::bits>> = json} -> {end_index, json}
+      {end_index, <<@comma, _rest::bits>> = json} -> {end_index, json}
       # we have to return the close array so the caller handles it other wise we gotta do
       # a lot more here.
       {end_index, <<@close_array, _rest::bits>> = json} -> {end_index, json}
       {end_index, ""} -> {:error, :unclosed_array, end_index - 1}
-      {end_index, rest} -> {:error, :multiple_bare_values, end_index}
+      {end_index, _rest} -> {:error, :multiple_bare_values, end_index}
     end
   end
 
