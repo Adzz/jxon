@@ -5,6 +5,11 @@ defmodule JxonIndexes do
   the binary they care about and choose to copy or reference the original binary.
 
   This is a currently untested sketch. It's probably off by one in a few places.
+
+  What would be real nice here is a debugger. But failing that an indication of the call path
+  a specific test case goes through, ie a stack trace I guess. Being able to know precisely
+  which paths are being taken for a given bit of data is game changing and that's all I'm
+  trying to replicate with the print debugging.
   """
   # " "
   @space <<0x20>>
@@ -40,8 +45,6 @@ defmodule JxonIndexes do
     <<0x38>>,
     <<0x39>>
   ]
-  @exp <<0x65>>
-  @exp_capital <<0x45>>
   @all_digits [@zero | @digits]
   @decimal_point <<0x2E>>
   # Escape next chars
@@ -63,9 +66,6 @@ defmodule JxonIndexes do
                     ] ++ @digits
   @doc """
   """
-  # we should not have to pass in the current_index ? I wonder if it enables parsing part
-  # of a document though. Like you could split it up and try it, or parse from a specific point
-  # onwards.
   def parse(document, handler, current_index, acc) do
     parse(document, document, handler, current_index, acc)
   end
@@ -79,15 +79,18 @@ defmodule JxonIndexes do
     parse(rest, original, handler, current_index + 1, acc)
   end
 
+  def parse(<<@open_object, rest::bits>>, original, handler, current_index, acc) do
+    case parse_object(rest, original, handler, current_index + 1, acc, 1) do
+      {:error, _, _} = error -> error
+      {index, rest, acc} -> parse_remaining_whitespace(rest, index, original, acc, handler)
+    end
+  end
+
   def parse(<<@open_array, rest::bits>>, original, handler, current_index, acc) do
     # Last arg is depth.
     case parse_array(rest, original, handler, current_index + 1, acc, 1) do
-      {:error, _, _} = error ->
-        error
-
-      {end_index, rest, acc} ->
-        # acc = parse(rest, original, handler, end_index, acc)
-        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+      {:error, _, _} = error -> error
+      {index, rest, acc} -> parse_remaining_whitespace(rest, index, original, acc, handler)
     end
   end
 
@@ -127,10 +130,6 @@ defmodule JxonIndexes do
       )
       when digit in @all_digits do
     case parse_number(number, current_index + 2) do
-      {end_index, ""} ->
-        acc = handler.do_negative_number(original, current_index, end_index, acc)
-        handler.end_of_document(original, end_index, acc)
-
       {end_index, remaining} ->
         acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
         parse_remaining_whitespace(remaining, end_index, original, acc, handler)
@@ -143,10 +142,6 @@ defmodule JxonIndexes do
   def parse(<<byte::binary-size(1), rest::bits>>, original, handler, current_index, acc)
       when byte in @all_digits do
     case parse_number(rest, current_index + 1) do
-      {end_index, ""} ->
-        acc = handler.do_positive_number(original, current_index, end_index, acc)
-        handler.end_of_document(original, end_index, acc)
-
       {end_index, remaining} ->
         acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
         parse_remaining_whitespace(remaining, end_index, original, acc, handler)
@@ -157,23 +152,17 @@ defmodule JxonIndexes do
   end
 
   def parse(<<@quotation_mark, rest::bits>>, original, handler, current_index, acc) do
-    case find_string_end(rest, current_index + 1) do
-      {:error, :unterminated_string, problematic_char_index} ->
-        {:error, :unterminated_string, problematic_char_index}
-
-      # The end index here is the index one BEFORE the closing '"' because we don't send the
-      # quotes to the handler. which means we + 1 when calling the end of the document.
-      {end_index, ""} ->
-        acc = handler.do_string(original, current_index + 1, end_index, acc)
-        handler.end_of_document(original, end_index + 1, acc)
-
-      {end_index, remaining} ->
-        acc = handler.do_string(original, current_index + 1, end_index, acc)
-        # Add 1 for the '"' and 1 to be at the char _after_ that.
-        parse_remaining_whitespace(remaining, end_index + 2, original, acc, handler)
-
+    case parse_string(rest, current_index + 1) do
       {:error, _, _} = error ->
         error
+
+      {end_index, ""} ->
+        acc = handler.do_string(original, current_index, end_index - 1, acc)
+        handler.end_of_document(original, end_index - 1, acc)
+
+      {end_index, remaining} ->
+        acc = handler.do_string(original, current_index, end_index - 1, acc)
+        parse_remaining_whitespace(remaining, end_index, original, acc, handler)
     end
   end
 
@@ -217,6 +206,54 @@ defmodule JxonIndexes do
   # here is if we are seeing an invalid character.
   def parse(<<_byte::binary-size(1), _rest::bits>>, _original, _handler, current_index, _acc) do
     {:error, :invalid_json_character, current_index}
+  end
+
+  defp parse_object(object_contents, original, handler, current_index, acc, depth) do
+    acc = handler.start_of_object(original, current_index - 1, acc)
+    # case skip_whitespace(array_contents, current_index) do
+    # The next valid chars are: close object, quotation_mark. Everything else is an error
+    case parse_object_key(object_contents, original, handler, current_index, acc) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest} ->
+        # This is the space after the key.
+        case skip_whitespace(rest, end_index) do
+          {:error, _, _} = error -> error
+          {index, rest} -> parse_object_value(rest, original, handler, index, acc)
+        end
+    end
+  end
+
+  # This has to parse a value, then find a close object OR a comma. VEryyy similar to the
+  # parse_array_element. But we stop at a different character. Can we share anything here?
+  defp parse_object_value(<<head::binary-size(1), rest::binary>>, original, handler, index, acc) do
+  end
+
+  defp parse_object_key(<<head::binary-size(1), rest::binary>>, original, handler, index, acc)
+       when head in @whitespace do
+    parse_object_key(rest, original, handler, index + 1, acc)
+  end
+
+  # Can't have empty object key.
+  defp parse_object_key(<<@quotation_mark, @quotation_mark, _rest::bits>>, _, _, index, _) do
+    {:error, :invalid_object_key, index}
+  end
+
+  # can there be whitespace between the speech mark and colon? nahh.
+  defp parse_object_key(<<@quotation_mark, rest::bits>>, original, handler, index, acc) do
+    case parse_string(rest, index + 1) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest} ->
+        acc = handler.object_key(original, index, end_index - 1, acc)
+
+        case parse_colon(rest, end_index) do
+          {:error, _, _} = error -> error
+          {end_index, rest} -> {end_index, rest}
+        end
+    end
   end
 
   # We don't check for open array because the caller already did that.
@@ -286,37 +323,17 @@ defmodule JxonIndexes do
          acc,
          depth
        ) do
-    case find_string_end(rest, current_index + 1) do
-      {:error, :unterminated_string, problematic_char_index} ->
-        {:error, :unterminated_string, problematic_char_index}
-
-      # The end index here is the index one BEFORE the closing '"' because we don't send the
-      # quotes to the handler. which means we + 1 when calling the end of the document.
-      {end_index, ""} ->
-        acc = handler.do_string(original, current_index + 1, end_index, acc)
-
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
-
-          {end_index, rest} ->
-            parse_array_element(rest, original, handler, end_index + 1, acc, depth)
-        end
-
-      {end_index, rest} ->
-        acc = handler.do_string(original, current_index + 1, end_index, acc)
-
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
-
-          {end_index, rest} ->
-            # Add 1 for the '"' and 1 to be at the char _after_ that.
-            parse_array_element(rest, original, handler, end_index + 2, acc, depth)
-        end
-
+    case parse_string(rest, current_index + 1) do
       {:error, _, _} = error ->
         error
+
+      {end_index, rest} ->
+        acc = handler.do_string(original, current_index, end_index - 1, acc)
+
+        case parse_comma(rest, end_index) do
+          {:error, _, _} = error -> error
+          {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
+        end
     end
   end
 
@@ -367,6 +384,9 @@ defmodule JxonIndexes do
        )
        when digit in @all_digits do
     case parse_number(number, current_index + 2) do
+      {:error, _, _} = error ->
+        error
+
       {end_index, rest} ->
         acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
 
@@ -374,9 +394,6 @@ defmodule JxonIndexes do
           {:error, _, _} = error -> error
           {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
         end
-
-      {:error, _, _} = error ->
-        error
     end
   end
 
@@ -390,16 +407,18 @@ defmodule JxonIndexes do
        )
        when byte in @all_digits do
     case parse_number(json, current_index) do
+      {:error, _, _} = error ->
+        error
+
       {end_index, rest} ->
+        # we subtract 1 because we are only sure we have finished parsing the number once
+        # we have stepped past it. So end_index points to one char after the end of the number.
         acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
 
         case parse_comma(rest, end_index) do
           {:error, _, _} = error -> error
           {end_index, rest} -> parse_array_element(rest, original, handler, end_index, acc, depth)
         end
-
-      {:error, _, _} = error ->
-        error
     end
   end
 
@@ -472,26 +491,23 @@ defmodule JxonIndexes do
     {:error, :invalid_json_character, index}
   end
 
-  defp parse_comma(rest, end_index) do
-    case skip_whitespace(rest, end_index) do
-      {end_index, <<@comma, _rest::bits>> = json} -> {end_index, json}
+  defp parse_colon(rest, index) do
+    case skip_whitespace(rest, index) do
+      {end_index, <<@colon, rest::bits>>} -> {end_index + 1, rest}
+      # This will be if we see a colon and then nothing after it.
+      {end_index, ""} -> {:error, :missing_object_value, end_index - 1}
+      {end_index, _rest} -> {:error, :missing_key_value_separator, end_index}
+    end
+  end
+
+  defp parse_comma(rest, index) do
+    case skip_whitespace(rest, index) do
+      {end_index, <<@comma, rest::bits>> = json} -> {end_index, json}
+      # we have to return the close array so the caller handles it other wise we gotta do
+      # a lot more here.
       {end_index, <<@close_array, _rest::bits>> = json} -> {end_index, json}
-      # When is it a missing comma and when is it a missing close array? Visually [[] is
-      # the latter, but the first error we see is the missing comma. Is there any way to
-      # disambiguate the two? Is it just always missing close array? It's a but subjective.
-
-      # Also it would be good to track the index of the open array that needs closing, we
-      # could do that if we make the depth a tuple of {starting_index, depth} ? Then we'd
-      # need to update keep a stack of open bracket indexes which isn't ideal...
-
-      # Is it more useful to point to where we think the close needs to be? Sort of yes
-      # But.. you'd need to make room for it in the original so it might be confusing?
-
-      # Perhaps the only way to see if it's "missing comma" is to look for a next element?
-      # if there is a closing bracket then it would mean missing comma, otherwise it's unclosed array
       {end_index, ""} -> {:error, :unclosed_array, end_index - 1}
-      # multiple bare values would also be a good error.
-      {end_index, _rest} -> {:error, :multiple_bare_values, end_index}
+      {end_index, rest} -> {:error, :multiple_bare_values, end_index}
     end
   end
 
@@ -507,13 +523,12 @@ defmodule JxonIndexes do
   defp parse_false(_, current_index), do: {:error, :invalid_boolean, current_index}
 
   # We already know there is an 'n' because that's how we decided to call this fn. In the
-  # happy case we want to point to the last 'l' so we can emit an event with that as the end
-  # index. In the error case we want to point to the first erroneous char, which is one after the
-  # match. current_index should always point at the head of the binary.
+  # happy case we want to point to the last 'l' + 1 so that we maintain the invariant that
+  # the index always points to the head of rest. It means on success we want to - 1 to get
+  # the end of the value. But that's fine.
 
-  # This happy return path sort of fucks up the idea that the index should point to the head of
-  # "rest". Instead it currently points one back which is an issue. In general we need to align
-  # on that and be prepared to subtract 1 when getting the final index.
+  # In the error case we want to point to the first erroneous char, which is one after the
+  # match.
   defp parse_null("ull" <> rest, current_index), do: {current_index + 3, rest}
   defp parse_null("ul" <> _, current_index), do: {:error, :invalid_boolean, current_index + 2}
   defp parse_null("u" <> _, current_index), do: {:error, :invalid_boolean, current_index + 1}
@@ -525,23 +540,23 @@ defmodule JxonIndexes do
 
   defp skip_whitespace(remaining, index), do: {index, remaining}
 
-  # Is there ever a case where this is wrong? Yes, if there are escaped backslash at the end
-  # of the string, no? Test that.
-  defp find_string_end(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
-    find_string_end(rest, end_character_index + 2)
+  defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
+    parse_string(rest, end_character_index + 2)
   end
 
-  defp find_string_end(<<@quotation_mark, rest::bits>>, end_character_index) do
-    # We skip the start and end quotation mark because it gets captured in the Elixir string
-    # That gets created from it.
-    {end_character_index - 1, rest}
+  defp parse_string(<<@quotation_mark, rest::bits>>, end_character_index) do
+    # This means we keep the invariant that index points to the head of rest. But means
+    # (because we are not emitting here) that we have to - 1 from the index when we emit in
+    # the caller. I think other parsers emit here, eg the numbers or arrays. We should make
+    # them all the same at some point.
+    {end_character_index + 1, rest}
   end
 
-  defp find_string_end(<<_byte::binary-size(1), rest::bits>>, end_character_index) do
-    find_string_end(rest, end_character_index + 1)
+  defp parse_string(<<_byte::binary-size(1), rest::bits>>, end_character_index) do
+    parse_string(rest, end_character_index + 1)
   end
 
-  defp find_string_end(<<>>, end_character_index) do
+  defp parse_string(<<>>, end_character_index) do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
@@ -565,7 +580,6 @@ defmodule JxonIndexes do
     parse_digits(rest, index + 1)
   end
 
-  defp parse_digits(<<>> = rest, index), do: {index - 1, rest}
   defp parse_digits(rest, index), do: {index, rest}
 
   defp parse_fractional_digits(rest, index) do
@@ -591,9 +605,6 @@ defmodule JxonIndexes do
   # Call this when you are expecting only whitespace to exist. If there is only whitespace
   # we call end_of_document with the correct index, if there is something other than whitespace
   # we return an appropriate error; either multiple bare values or invalid json char.
-
-  # We need to parameterize the termination chars because we want different things at different
-  # times. When parsing an array valid termination chars are different from any other time.
   defp parse_remaining_whitespace(
          <<head::binary-size(1), rest::binary>>,
          current_index,
