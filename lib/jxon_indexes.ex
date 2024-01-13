@@ -90,7 +90,7 @@ defmodule JxonIndexes do
     # Last two args are array_depth and object depth
     case parse_array(rest, original, handler, current_index + 1, acc, 1, 0) do
       {:error, _, _} = error -> error
-      {index, rest, acc} -> parse_remaining_whitespace(rest, index, original, acc, handler)
+      {index, rest, acc, _, _} -> parse_remaining_whitespace(rest, index, original, acc, handler)
     end
   end
 
@@ -211,8 +211,8 @@ defmodule JxonIndexes do
          handler,
          current_index,
          acc,
-         _array_depth,
-         _object_depth
+         array_depth,
+         object_depth
        ) do
     acc = handler.start_of_object(original, current_index - 1, acc)
     # case skip_whitespace(array_contents, current_index) do
@@ -221,19 +221,19 @@ defmodule JxonIndexes do
       {:error, _, _} = error ->
         error
 
+      # The problem with the object thing is if you see a comma you need to see a key
+      # again, which is unlike the array situation. So to re-use we need to make the
+      # parse_array fn call case parse_array_element when it gets returned a value, unless
+      # it's end of the array or document..
+
       {end_index, rest} ->
         # This is the space after the key.
         case skip_whitespace(rest, end_index) do
-          {:error, _, _} = error -> error
-          {index, rest} -> parse_object_value(rest, original, handler, index, acc)
+          {:error, _, _} = error ->
+            error
+            # {index, rest} -> parse_object_value(rest, original, handler, index, acc)
         end
     end
-  end
-
-  # This has to parse a value, then find a close object OR a comma. VEryyy similar to the
-  # parse_array_element. But we stop at a different character. Can we share anything here?
-  defp parse_object_value(<<head::binary-size(1), rest::binary>>, original, handler, index, acc) do
-    raise "not implemented"
   end
 
   defp parse_object_key(<<head::binary-size(1), rest::binary>>, original, handler, index, acc)
@@ -280,7 +280,10 @@ defmodule JxonIndexes do
         {:error, :leading_comma, end_index}
 
       {end_index, rest} ->
-        case parse_array_element(
+        rest |> IO.inspect(limit: :infinity, label: "parse_array skip whitespace")
+        # Because we are now recuring parse_array the return value of this is now also
+        # the return type of parse_array_element.
+        case parse_array_elements(
                rest,
                original,
                handler,
@@ -288,12 +291,55 @@ defmodule JxonIndexes do
                acc,
                array_depth,
                object_depth
-             ) do
-          {:error, _, _} = error -> error
-          {end_index, <<>> = rest, acc} -> {end_index - 1, rest, acc}
-          {end_index, rest, acc} -> {end_index, rest, acc}
+             )
+             |> IO.inspect(limit: :infinity, label: "parse_array_elements") do
+          # Here we want to be like "if we see a comma then recur".
+          {:error, _, _} = error ->
+            error
+
+          {end_index, <<>>, acc} ->
+            {end_index - 1, <<>>, acc, array_depth, object_depth}
+
+          {end_index, rest, acc} ->
+            {end_index, rest, acc, array_depth, object_depth}
         end
     end
+  end
+
+  # elements wants to parse element, then look for a comma and recur if so.
+  defp parse_array_elements(
+         rest,
+         original,
+         handler,
+         index,
+         acc,
+         array_depth,
+         object_depth
+       ) do
+    case parse_array_element(rest, original, handler, index, acc, array_depth, object_depth)
+         |> IO.inspect(limit: :infinity, label: "parse_array_element 1") do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest, acc, 0, 0} ->
+        {end_index, rest, acc}
+
+      {end_index, rest, acc, array_depth, object_depth} ->
+        parse_array_elements(rest, original, handler, end_index, acc, array_depth, object_depth)
+    end
+
+    # case parse_array_element(rest, original, handler, end_index, acc, array_depth, object_depth) do
+    #   {_end_index, <<@close_array, _::bits>>} ->
+    #     {:error, :trailing_comma, comma_index}
+
+    #   {end_index, <<@comma, _::bits>>} ->
+    #     {:error, :double_comma, end_index}
+
+    #   # What are the conditions on which we recur? In an array always but in an object we do, but
+    #   # we need to do a different thing if we are parsing an object, namely parse the key.
+    #   {end_index, rest} ->
+    #     parse_array_element(rest, original, handler, end_index, acc, array_depth, object_depth)
+    # end
   end
 
   defp parse_array_element(
@@ -312,8 +358,11 @@ defmodule JxonIndexes do
       {end_index, <<@comma, _::bits>>} ->
         {:error, :double_comma, end_index}
 
+      # What are the conditions on which we recur? In an array always but in an object we do, but
+      # we need to do a different thing if we are parsing an object, namely parse the key.
       {end_index, rest} ->
-        parse_array_element(rest, original, handler, end_index, acc, array_depth, object_depth)
+        {end_index, rest, acc, array_depth, object_depth}
+        # parse_array_element(rest, original, handler, end_index, acc, array_depth, object_depth)
     end
   end
 
@@ -328,24 +377,28 @@ defmodule JxonIndexes do
        ) do
     acc = handler.end_of_array(original, current_index, acc)
     new_array_depth = array_depth - 1
+    rest |> IO.inspect(limit: :infinity, label: "resesssssst")
+    new_array_depth |> IO.inspect(limit: :infinity, label: "NEWAD")
 
     if new_array_depth == 0 do
-      {current_index + 1, rest, acc}
+      {current_index + 1, rest, acc, new_array_depth, object_depth}
     else
       case parse_comma(rest, current_index + 1) do
         {:error, _, _} = error ->
           error
 
         {end_index, rest} ->
-          parse_array_element(
-            rest,
-            original,
-            handler,
-            end_index,
-            acc,
-            new_array_depth,
-            object_depth
-          )
+          {end_index, rest, acc, new_array_depth, object_depth}
+
+          # parse_array_element(
+          #   rest,
+          #   original,
+          #   handler,
+          #   end_index,
+          #   acc,
+          #   new_array_depth,
+          #   object_depth
+          # )
       end
     end
   end
@@ -375,6 +428,40 @@ defmodule JxonIndexes do
   end
 
   defp parse_array_element(
+         <<@close_object, rest::bits>>,
+         original,
+         handler,
+         current_index,
+         acc,
+         array_depth,
+         object_depth
+       ) do
+    acc = handler.end_of_object(original, current_index, acc)
+    new_object_depth = object_depth - 1
+
+    if new_object_depth == 0 do
+      {current_index + 1, rest, acc, array_depth, new_object_depth}
+    else
+      case parse_comma(rest, current_index + 1) do
+        {:error, _, _} = error ->
+          error
+
+        {end_index, rest} ->
+          {end_index, rest, acc, array_depth, new_object_depth}
+          # parse_array_element(
+          #   rest,
+          #   original,
+          #   handler,
+          #   end_index,
+          #   acc,
+          #   array_depth,
+          #   new_object_depth
+          # )
+      end
+    end
+  end
+
+  defp parse_array_element(
          <<@quotation_mark, rest::bits>>,
          original,
          handler,
@@ -389,22 +476,23 @@ defmodule JxonIndexes do
 
       {end_index, rest} ->
         acc = handler.do_string(original, current_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
@@ -464,22 +552,23 @@ defmodule JxonIndexes do
 
       {end_index, rest} ->
         acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
@@ -501,22 +590,23 @@ defmodule JxonIndexes do
         # we subtract 1 because we are only sure we have finished parsing the number once
         # we have stepped past it. So end_index points to one char after the end of the number.
         acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
@@ -535,22 +625,23 @@ defmodule JxonIndexes do
 
       {end_index, rest} ->
         acc = handler.do_true(original, start_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
@@ -569,22 +660,23 @@ defmodule JxonIndexes do
 
       {end_index, rest} ->
         acc = handler.do_false(original, start_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
@@ -603,30 +695,40 @@ defmodule JxonIndexes do
 
       {end_index, rest} ->
         acc = handler.do_null(original, start_index, end_index - 1, acc)
+        {end_index, rest, acc, array_depth, object_depth}
 
-        case parse_comma(rest, end_index) do
-          {:error, _, _} = error ->
-            error
+        # # Do we want to parse comma everywhere? can't we recur and let parse_array_element
+        # # detect that?
+        # case parse_comma(rest, end_index) do
+        #   {:error, _, _} = error ->
+        #     error
 
-          {end_index, rest} ->
-            parse_array_element(
-              rest,
-              original,
-              handler,
-              end_index,
-              acc,
-              array_depth,
-              object_depth
-            )
-        end
+        #   {end_index, rest} ->
+        #     parse_array_element(
+        #       rest,
+        #       original,
+        #       handler,
+        #       end_index,
+        #       acc,
+        #       array_depth,
+        #       object_depth
+        #     )
+        # end
     end
   end
 
   defp parse_array_element(<<>>, _original, _handler, end_index, acc, array_depth, object_depth) do
+    array_depth |> IO.inspect(limit: :infinity, label: "ADDADADADAD")
+
     if array_depth > 0 do
       {:error, :unclosed_array, end_index - 1}
     else
-      {end_index - 1, "", acc}
+      if object_depth > 0 do
+        {:error, :unclosed_object, end_index - 1}
+      else
+        {end_index - 1, "", acc, array_depth, object_depth}
+        # {end_index - 1, "", acc}
+      end
     end
   end
 
