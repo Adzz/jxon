@@ -219,11 +219,11 @@ defmodule JxonIndexes do
   end
 
   defp ban(rest, original, handler, current_index, acc, depth_stack) do
-    case parse_object_key(rest, original, handler, current_index, acc) do
+    case parse_object_key(rest, original, handler, current_index, acc, depth_stack) do
       {:error, _, _} = error ->
         error
 
-      {end_index, rest, acc} ->
+      {end_index, rest, acc, depth_stack} ->
         # This is the space after the key.
         case skip_whitespace(rest, end_index) do
           {:error, _, _} = error ->
@@ -247,18 +247,32 @@ defmodule JxonIndexes do
     end
   end
 
-  defp parse_object_key(<<head::binary-size(1), rest::binary>>, original, handler, index, acc)
+  defp parse_object_key(
+         <<head::binary-size(1), rest::binary>>,
+         original,
+         handler,
+         index,
+         acc,
+         depth_stack
+       )
        when head in @whitespace do
-    parse_object_key(rest, original, handler, index + 1, acc)
+    parse_object_key(rest, original, handler, index + 1, acc, depth_stack)
   end
 
   # Can't have empty object key.
-  defp parse_object_key(<<@quotation_mark, @quotation_mark, _rest::bits>>, _, _, index, _) do
+  defp parse_object_key(<<@quotation_mark, @quotation_mark, _rest::bits>>, _, _, index, _, _) do
     {:error, :invalid_object_key, index}
   end
 
   # can there be whitespace between the speech mark and colon? YES!
-  defp parse_object_key(<<@quotation_mark, rest::bits>>, original, handler, index, acc) do
+  defp parse_object_key(
+         <<@quotation_mark, rest::bits>>,
+         original,
+         handler,
+         index,
+         acc,
+         depth_stack
+       ) do
     case parse_string(rest, index + 1) do
       {:error, _, _} = error ->
         error
@@ -268,16 +282,40 @@ defmodule JxonIndexes do
 
         case parse_colon(rest, end_index) do
           {:error, _, _} = error -> error
-          {end_index, rest} -> {end_index, rest, acc}
+          {end_index, rest} -> {end_index, rest, acc, depth_stack}
         end
     end
   end
 
-  defp parse_object_key("", _original, _handler, index, _acc) do
+  defp parse_object_key(
+         <<@close_object, rest::bits>>,
+         original,
+         handler,
+         index,
+         acc,
+         [head_depth | rest_depth]
+       ) do
+    # We also need to to the depth stack stuff... which means we have to pass it in or
+    # special case it.
+    acc = handler.end_of_object(original, index, acc)
+
+    case head_depth do
+      {@object, 1} ->
+        {index + 1, rest, acc, rest_depth}
+
+      {@object, count} ->
+        {index + 1, rest, acc, [{@object, count - 1} | rest_depth]}
+
+      {@array, _count} ->
+        {:error, :unopened_object, index}
+    end
+  end
+
+  defp parse_object_key("", _original, _handler, index, _acc, _depth_stack) do
     {:error, :invalid_object_key, index - 1}
   end
 
-  defp parse_object_key(_rest, _original, _handler, index, _acc) do
+  defp parse_object_key(_rest, _original, _handler, index, _acc, _depth_stack) do
     {:error, :invalid_object_key, index}
   end
 

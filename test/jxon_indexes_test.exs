@@ -1090,7 +1090,6 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 14, 2) == " }"
     end
 
-    @tag :t
     test "not closing an object is an error." do
       # Todo put the number back
       json_string = "[ [ { \"a\": 1] ]"
@@ -1151,7 +1150,14 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 11, 2) == "[ "
     end
 
-    #
+    @tag :t
+    test " {} " do
+      json_string = "{  }"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{}
+    end
+
     # json_string = "[ {}"
   end
 
