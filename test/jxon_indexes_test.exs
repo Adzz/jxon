@@ -1124,18 +1124,35 @@ defmodule JxonIndexesTest do
     test "missing val with comma" do
       json_string = "[ [ { \"a\": ,] ]"
       acc = []
-      # Should this be missing comma? unclosed object really
+
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
                {:error, :missing_object_value, 10}
 
-      assert :binary.part(json_string, 10, 1) == " "
+      assert :binary.part(json_string, 10, 2) == " ,"
     end
 
     test "unclosed object and array" do
-      # json_string = "[ {"
-      # json_string = "[ {}"
-      # json_string = "{ "thing": [ }"
+      json_string = "[ {"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_object_key, 2}
+
+      assert :binary.part(json_string, 2, 1) == "{"
     end
+
+    test "{ \"thing\": [ }" do
+      json_string = "{ \"thing\": [ }"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unclosed_array, 12}
+
+      assert :binary.part(json_string, 11, 2) == "[ "
+    end
+
+    #
+    # json_string = "[ {}"
   end
 
   # describe "hexadigits" do

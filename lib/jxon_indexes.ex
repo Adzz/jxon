@@ -273,6 +273,10 @@ defmodule JxonIndexes do
     end
   end
 
+  defp parse_object_key("", _original, _handler, index, _acc) do
+    {:error, :invalid_object_key, index - 1}
+  end
+
   defp parse_object_key(_rest, _original, _handler, index, _acc) do
     {:error, :invalid_object_key, index}
   end
