@@ -71,11 +71,24 @@ defmodule JxonIndexesTest do
     # Errors the lexer will catch: key and no value, invalid key, value and no key, no
     # separator, no comma, invalid chars at random places.... etc.
     def object_key(original_binary, start_index, end_index, acc) when start_index <= end_index do
-      len = end_index - start_index + 1
-      # How do we signify that it's an object key we have stacked? Well, I guess we can
-      # to use a tuple. We leave a lot of the error checking to the emitter though,
-      key = :binary.part(original_binary, start_index, len)
+      [key | _] = do_string(original_binary, start_index, end_index, acc)
       [{key, :not_parsed_yet} | acc]
+    end
+
+    # I don't think we have this here actually... I think we get a "do_positive_number"
+    # and in that determine whether we are also currently parsing an object or not.
+    # def object_value(original_binary, end_index, acc) do
+    # end
+
+    def end_of_object(original_binary, end_index, acc) do
+      if :binary.part(original_binary, end_index, 1) != "}" do
+        raise "Object end index error"
+      end
+
+      # There is possibly some error checking here, but I'm not clear on whether there is
+      # some error detection that we can't do in the lexer thing... I'd like to not have to
+      # do that extra stuff here.
+      acc
     end
 
     def start_of_array(original_binary, start_index, acc) do
@@ -104,6 +117,10 @@ defmodule JxonIndexesTest do
       # This should not be out of range. It shouldn't be short either we could assert on that.
       :binary.part(original_binary, end_index, 1)
       acc
+    end
+
+    defp update_acc(value, [{key, :not_parsed_yet}, map | rest]) when is_map(map) do
+      [Map.put(map, key, value) | rest]
     end
 
     defp update_acc(value, [list | rest]) when is_list(list) do
@@ -1042,6 +1059,30 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
                {:error, :invalid_json_character, 2}
     end
+
+    # test "closing an array early is an error." do
+    #   json_string = "[ { ] "
+    #   acc = []
+
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+    #            {:error, :blaahh, 2}
+    # end
+
+    # test "closing an array in an object early is an error." do
+    #   json_string = "{ \"a\": ] } "
+    #   acc = []
+
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+    #            {:error, :blaahh, 2}
+    # end
+
+    # test "closing an object early is an error." do
+    #   json_string = "{ \"a\": [ } "
+    #   acc = []
+
+    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+    #            {:error, :blaahh, 2}
+    # end
   end
 
   describe "objects" do
@@ -1049,7 +1090,13 @@ defmodule JxonIndexesTest do
     test "a simple object" do
       json_string = "{ \f\n\t\r  \"a\": 1 \f\n\t\r}"
       acc = []
-      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{}
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "1"}
+    end
+
+    test "unclosed object and array" do
+      # json_string = "[ {"
+      # json_string = "[ {}"
+      # json_string = "{ "thing": [ }"
     end
   end
 
