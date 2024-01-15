@@ -30,7 +30,7 @@ defmodule JxonIndexes do
   @close_array <<0x5D>>
   @open_object <<0x7B>>
   @close_object <<0x7D>>
-  @plus <<0x2B>>
+  # @plus <<0x2B>>
   @minus <<0x2D>>
   @zero <<0x30>>
   @digits [
@@ -47,11 +47,11 @@ defmodule JxonIndexes do
   @all_digits [@zero | @digits]
   @decimal_point <<0x2E>>
   # Escape next chars
-  @u <<0x75>>
-  @b <<0x62>>
+  # @u <<0x75>>
+  # @b <<0x62>>
   @f <<0x66>>
   @n <<0x6E>>
-  @r <<0x72>>
+  # @r <<0x72>>
   @t <<0x74>>
   @value_indicators [
                       @quotation_mark,
@@ -230,6 +230,9 @@ defmodule JxonIndexes do
             error
 
           {index, rest} ->
+            # Now then. Some values are not valid here, like a closing array. Will that be
+            # captured by depth? YES if we have our checks that depth should never be < 0,
+            # but the Q is where to put that...
             case parse_value(rest, original, handler, index, acc, array_depth, object_depth) do
               {:error, _, _} = error ->
                 error
@@ -282,6 +285,10 @@ defmodule JxonIndexes do
           {end_index, rest} -> {end_index, rest, acc}
         end
     end
+  end
+
+  defp parse_object_key(_rest, _original, _handler, index, _acc) do
+    {:error, :invalid_object_key, index}
   end
 
   # We don't check for open array because the caller already did that.
@@ -352,9 +359,14 @@ defmodule JxonIndexes do
          array_depth,
          object_depth
        ) do
-    acc = handler.end_of_array(original, current_index, acc)
     new_array_depth = array_depth - 1
-    {current_index + 1, rest, acc, new_array_depth, object_depth}
+
+    if new_array_depth < 0 do
+      {:error, :unopened_array, current_index}
+    else
+      acc = handler.end_of_array(original, current_index, acc)
+      {current_index + 1, rest, acc, new_array_depth, object_depth}
+    end
   end
 
   defp parse_value(
@@ -389,6 +401,15 @@ defmodule JxonIndexes do
     parse_object(rest, original, handler, index + 1, acc, array_depth, object_depth + 1)
   end
 
+  # Aha. So we have hit the problem we anticipated. The order in which we see objects / arrays
+  # matters. A simple count is not effective enough BECAUSE the counts can be correct but
+  # there can be a parse error? EG "{\"b\": { \"a\": [ } } "
+  # Perhaps it's as simple as saying that the one which is closing is the greatest of the two?
+  # but that can't be correct either. You could have 17 open objects before one array open.
+
+  # The rule is simply; The order in which things open is the order in which they should
+  # close. Now that we are talking about order we need to save that order, which means
+  # a stack baby.
   defp parse_value(
          <<@close_object, rest::bits>>,
          original,
@@ -398,9 +419,16 @@ defmodule JxonIndexes do
          array_depth,
          object_depth
        ) do
-    acc = handler.end_of_object(original, current_index, acc)
     new_object_depth = object_depth - 1
-    {current_index + 1, rest, acc, array_depth, new_object_depth}
+    object_depth |> IO.inspect(limit: :infinity, label: "OBJ depth")
+    array_depth |> IO.inspect(limit: :infinity, label: "ARR depth")
+
+    if new_object_depth < 0 do
+      {:error, :unopened_object, current_index}
+    else
+      acc = handler.end_of_object(original, current_index, acc)
+      {current_index + 1, rest, acc, array_depth, new_object_depth}
+    end
   end
 
   defp parse_value(

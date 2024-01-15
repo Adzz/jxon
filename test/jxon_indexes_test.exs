@@ -1060,29 +1060,39 @@ defmodule JxonIndexesTest do
                {:error, :invalid_json_character, 2}
     end
 
-    # test "closing an array early is an error." do
-    #   json_string = "[ { ] "
-    #   acc = []
+    test "closing an array early is an error." do
+      json_string = "[ { ] "
+      acc = []
 
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-    #            {:error, :blaahh, 2}
-    # end
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_object_key, 4}
+    end
 
-    # test "closing an array in an object early is an error." do
-    #   json_string = "{ \"a\": ] } "
-    #   acc = []
+    test "closing an array in an object early is an error." do
+      json_string = "{ \"a\": ] } "
+      acc = []
 
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-    #            {:error, :blaahh, 2}
-    # end
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unopened_array, 7}
+    end
 
-    # test "closing an object early is an error." do
-    #   json_string = "{ \"a\": [ } "
-    #   acc = []
+    @tag :t
+    test "closing an object early is an error." do
+      json_string = "{\"b\": { \"a\": [ } } "
+      acc = []
 
-    #   assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-    #            {:error, :blaahh, 2}
-    # end
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unclosed_array, 10}
+    end
+
+    # @tag :t
+    test "not closing an object is an error." do
+      json_string = "[ [ { \"a\": 1 ] ]"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unclosed_object, 12}
+    end
   end
 
   describe "objects" do
