@@ -1074,24 +1074,32 @@ defmodule JxonIndexesTest do
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
                {:error, :unopened_array, 7}
+
+      # we point to the char before the closing bracket. BUT should this be an unclosed
+      # object OR an unopened array. Probs the latter.
+      assert :binary.part(json_string, 7, 1) == "]"
     end
 
-    @tag :t
     test "closing an object early is an error." do
       json_string = "{\"b\": { \"a\": [ } } "
       acc = []
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :unclosed_array, 10}
+               {:error, :unclosed_array, 14}
+
+      assert :binary.part(json_string, 14, 2) == " }"
     end
 
-    # @tag :t
+    @tag :t
     test "not closing an object is an error." do
-      json_string = "[ [ { \"a\": 1 ] ]"
+      # Todo put the number back
+      json_string = "[ [ { \"a\": 1] ]"
       acc = []
-
+      # Should this be missing comma? unclosed object really
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :unclosed_object, 12}
+               {:error, :unclosed_object, 11}
+
+      assert :binary.part(json_string, 11, 1) == "1"
     end
   end
 
@@ -1101,6 +1109,26 @@ defmodule JxonIndexesTest do
       json_string = "{ \f\n\t\r  \"a\": 1 \f\n\t\r}"
       acc = []
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "1"}
+    end
+
+    test "missing value error" do
+      json_string = "[ [ { \"a\": ] ]"
+      acc = []
+      # Should this be missing comma? unclosed object really
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :unopened_array, 11}
+
+      assert :binary.part(json_string, 11, 1) == "]"
+    end
+
+    test "missing val with comma" do
+      json_string = "[ [ { \"a\": ,] ]"
+      acc = []
+      # Should this be missing comma? unclosed object really
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :missing_object_value, 10}
+
+      assert :binary.part(json_string, 10, 1) == " "
     end
 
     test "unclosed object and array" do
