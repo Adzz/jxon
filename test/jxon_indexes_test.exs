@@ -855,7 +855,7 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 7, 1) == " "
     end
 
-    test "trailing comma" do
+    test "trailing comma [1,2,] " do
       json_string = "[1,2,]"
       acc = []
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :trailing_comma, 4}
