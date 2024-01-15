@@ -24,7 +24,6 @@ defmodule JxonIndexes do
   @whitespace [@space, @horizontal_tab, @new_line, @carriage_return, @form_feed]
   @quotation_mark <<0x22>>
   @backslash <<0x5C>>
-  @forwardslash <<0x2F>>
   @comma <<0x2C>>
   @colon <<0x3A>>
   @open_array <<0x5B>>
@@ -558,7 +557,7 @@ defmodule JxonIndexes do
     {end_index - 1, "", acc, 0, 0}
   end
 
-  defp parse_value(<<>>, _original, _handler, end_index, acc, array_depth, object_depth) do
+  defp parse_value(<<>>, _original, _handler, end_index, _acc, array_depth, object_depth) do
     if array_depth > object_depth do
       {:error, :unclosed_array, end_index - 1}
     else
@@ -603,10 +602,10 @@ defmodule JxonIndexes do
           {end_index, <<@comma, _rest::bits>>} ->
             {:error, :double_comma, end_index}
 
-          {end_index, <<@close_array, _rest::bits>>} ->
+          {_end_index, <<@close_array, _rest::bits>>} ->
             {:error, :trailing_comma, comma_index}
 
-          {end_index, <<@close_object, _rest::bits>>} ->
+          {_end_index, <<@close_object, _rest::bits>>} ->
             {:error, :trailing_comma, comma_index}
 
           {end_index, ""} ->
@@ -647,10 +646,10 @@ defmodule JxonIndexes do
           end
         end
 
-      {end_index, <<@close_array, rest::bits>> = json} ->
+      {end_index, <<@close_array, _rest::bits>> = json} ->
         {end_index, json}
 
-      {end_index, <<@close_object, rest::bits>> = json} ->
+      {end_index, <<@close_object, _rest::bits>> = json} ->
         {end_index, json}
 
       {end_index, <<byte::binary-size(1), _rest::bits>>} when byte in @value_indicators ->
