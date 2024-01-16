@@ -220,14 +220,7 @@ defmodule JxonIndexes do
   end
 
   defp key_value(rest, original, handler, current_index, acc, depth_stack) do
-    case parse_object_key(
-           rest,
-           original,
-           handler,
-           current_index,
-           acc,
-           depth_stack |> IO.inspect(limit: :infinity, label: "DEEPPPPP")
-         ) do
+    case parse_object_key(rest, original, handler, current_index, acc, depth_stack) do
       {:error, _, _} = error ->
         error
 
@@ -247,22 +240,9 @@ defmodule JxonIndexes do
 
           {end_index, rest, acc, depth_stack} ->
             case parse_comma(rest, end_index, depth_stack) do
-              {:error, _, _} = error ->
-                error
-
-              {index, <<@close_array, _::bits>>} ->
-                {:error, :unclosed_object, index - 1}
-
-              # We could see a new bare value here and we aren't detecting it...
-              {index, rest} ->
-                key_value(
-                  rest |> IO.inspect(limit: :infinity, label: "KV"),
-                  original,
-                  handler,
-                  index,
-                  acc,
-                  depth_stack
-                )
+              {:error, _, _} = error -> error
+              {index, <<@close_array, _::bits>>} -> {:error, :unclosed_object, index - 1}
+              {index, rest} -> key_value(rest, original, handler, index, acc, depth_stack)
             end
         end
     end
@@ -320,7 +300,7 @@ defmodule JxonIndexes do
         error
 
       acc ->
-        case head_depth |> IO.inspect(limit: :infinity, label: "HEADEPTHDS") do
+        case head_depth do
           {@object, 1} ->
             {index + 1, rest, acc, rest_depth}
 
