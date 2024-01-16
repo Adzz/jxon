@@ -1251,7 +1251,7 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => []}
     end
 
-    test "" do
+    test "nestd objects and arrays" do
       json_string = """
       {"x":[{"id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}], "id": "yyyyyyyyyyyyyyyyyyyyyyyyy"}
       """
@@ -1262,6 +1262,19 @@ defmodule JxonIndexesTest do
                "id" => "yyyyyyyyyyyyyyyyyyyyyyyyy",
                "x" => [%{"id" => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}]
              }
+    end
+
+    test " object with bare value after  " do
+      json_string = """
+      {"a": true} "x"
+      """
+
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :multiple_bare_values, 12}
+
+      assert :binary.part(json_string, 12, 3) == "\"x\""
     end
   end
 
@@ -1288,6 +1301,7 @@ defmodule JxonIndexesTest do
   #       fp = "./test/test_parsing/" <> unquote(f)
   #       json_string = File.read!(fp)
   #       acc = []
+
   #       refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
   #     end
   #   end

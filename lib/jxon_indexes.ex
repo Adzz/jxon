@@ -224,8 +224,11 @@ defmodule JxonIndexes do
       {:error, _, _} = error ->
         error
 
+      {end_index, rest, acc, []} ->
+        {end_index, rest, acc, []}
+
       {end_index, rest, acc, depth_stack} ->
-        # This is the space after the key.
+        # This is the space after the key
         {index, rest} = skip_whitespace(rest, end_index)
 
         case parse_value(rest, original, handler, index, acc, depth_stack) do
@@ -239,6 +242,7 @@ defmodule JxonIndexes do
             case parse_comma(rest, end_index, depth_stack) do
               {:error, _, _} = error -> error
               {index, <<@close_array, _::bits>>} -> {:error, :unclosed_object, index - 1}
+              # We could see a new bare value here and we aren't detecting it...
               {index, rest} -> key_value(rest, original, handler, index, acc, depth_stack)
             end
         end
@@ -292,8 +296,6 @@ defmodule JxonIndexes do
          acc,
          [head_depth | rest_depth]
        ) do
-    # We also need to to the depth stack stuff... which means we have to pass it in or
-    # special case it.
     case handler.end_of_object(original, index, acc) do
       {:error, _, _} = error ->
         error
