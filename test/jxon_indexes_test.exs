@@ -60,6 +60,7 @@ defmodule JxonIndexesTest do
       end
 
       [%{} | acc]
+      # |> IO.inspect(limit: :infinity, label: "start_of_object 1")
     end
 
     # In valid json this will always be a string, so likely it's the same
@@ -72,23 +73,28 @@ defmodule JxonIndexesTest do
     # separator, no comma, invalid chars at random places.... etc.
     def object_key(original_binary, start_index, end_index, acc) when start_index <= end_index do
       [key | _] = do_string(original_binary, start_index, end_index, acc)
-      [{key, :not_parsed_yet} | acc]
-    end
 
-    # I don't think we have this here actually... I think we get a "do_positive_number"
-    # and in that determine whether we are also currently parsing an object or not.
-    # def object_value(original_binary, end_index, acc) do
-    # end
+      [{key, :not_parsed_yet} | acc]
+      # |> IO.inspect(limit: :infinity, label: "object_key 1")
+    end
 
     def end_of_object(original_binary, end_index, acc) do
       if :binary.part(original_binary, end_index, 1) != "}" do
         raise "Object end index error"
       end
 
-      # There is possibly some error checking here, but I'm not clear on whether there is
-      # some error detection that we can't do in the lexer thing... I'd like to not have to
-      # do that extra stuff here.
-      acc
+      case acc do
+        [map, list | rest] when is_list(list) ->
+          [[map | list] | rest]
+
+        # |> IO.inspect(limit: :infinity, label: "end_of_object 1")
+
+        acc ->
+          acc
+          # |> IO.inspect(limit: :infinity, label: "end_of_object 2")
+      end
+
+      # Here we may have to put it into the list, right?
     end
 
     def start_of_array(original_binary, start_index, acc) do
@@ -97,20 +103,44 @@ defmodule JxonIndexesTest do
       end
 
       [[] | acc]
+      # |> IO.inspect(limit: :infinity, label: "start_of_array 1")
     end
 
+    # If we are closing an array and the thing before it is an array we collapse into
+    # that because can't have multiple arrays that don't collapse?
     def end_of_array(original_binary, end_index, [array, parent | rest])
         when is_list(array) and is_list(parent) do
       if :binary.part(original_binary, end_index, 1) != "]" do
         raise "Array index error"
       end
 
-      # when do we collapse into the thing below? Always?
       [[Enum.reverse(array) | parent] | rest]
+      # |> IO.inspect(limit: :infinity, label: "end_of_array 1")
+    end
+
+    def end_of_array(original_binary, end_index, [map, parent | rest]) when is_list(parent) do
+      if :binary.part(original_binary, end_index, 1) != "]" do
+        raise "Array index error"
+      end
+
+      [Enum.reverse([map | parent]) | rest]
+      # |> IO.inspect(limit: :infinity, label: "end_of_array 2")
+    end
+
+    def end_of_array(_original_binary, _end_index, [list, {key, :not_parsed_yet}, map | rest])
+        when is_map(map) do
+      # if Map.has_key?(map, key) do
+      # {:error, :duplicate_object_key, key}
+      # else
+      [Map.put(map, key, Enum.reverse(list)) | rest]
+      # end
+
+      # |> IO.inspect(limit: :infinity, label: "end_of_array 3")
     end
 
     def end_of_array(_original_binary, _end_index, [array]) do
       [Enum.reverse(array)]
+      # |> IO.inspect(limit: :infinity, label: "4")
     end
 
     def end_of_document(original_binary, end_index, [acc]) do
@@ -120,22 +150,23 @@ defmodule JxonIndexesTest do
     end
 
     defp update_acc(value, [{key, :not_parsed_yet}, map | rest]) when is_map(map) do
-      if Map.has_key?(map, key) do
-        # Now. Here is a good Q should the handler be able to halt the lexer? If we are going to
-        # do this then yes it has to be able to. Also means we could implement the pause / resume
-        # whilst we are at it.
-        {:error, :duplicate_object_key, key}
-      else
-        [Map.put(map, key, value) | rest]
-      end
+      # if Map.has_key?(map, key) do
+      # {:error, :duplicate_object_key, key}
+      # else
+      [Map.put(map, key, value) | rest]
+      # end
+
+      # |> IO.inspect(limit: :infinity, label: "update_acc 1")
     end
 
     defp update_acc(value, [list | rest]) when is_list(list) do
       [[value | list] | rest]
+      # |> IO.inspect(limit: :infinity, label: "update_acc 2")
     end
 
     defp update_acc(value, acc) do
       [value | acc]
+      # |> IO.inspect(limit: :infinity, label: "update_acc 3")
     end
   end
 
@@ -149,6 +180,12 @@ defmodule JxonIndexesTest do
                {:error, :invalid_json_character, 4}
 
       assert :binary.part(json_string, 4, 1) == "b"
+    end
+
+    test "just space is an error..." do
+      json_string = " "
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :empty_document, 1}
     end
 
     test "an invalid bare value" do
@@ -1107,6 +1144,12 @@ defmodule JxonIndexesTest do
 
       assert :binary.part(json_string, 11, 1) == "1"
     end
+
+    test " [{}] " do
+      json_string = "[{}]"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [%{}]
+    end
   end
 
   describe "objects" do
@@ -1176,21 +1219,24 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "1", "b" => "2"}
     end
 
-    # Do we let the caller handle them? tempting but ultimately probs not. But, if we want
-    # to do it in the lexer then we have to store the set of keys at each depth, which
-    # ruins our chance of compressing the stack. It would also mean that we'd be saving the
-    # keysets at the same time that the handler is which seems wasteful... Finally there is
-    # also the case for allowing duplicate keys if the handler puts it into a keyword list
-    # for example. This is probably bad, but maybe there is a use case for that. Finally,
-    # when we come to ignoring values not specified in the schema do we want to blow up
-    # and stop the world if keys we don't even care about are duplicated? Perhaps not...
-    @tag :t
     test "duplicate object keys is an error" do
       json_string = "{ \"a\": 1, \"a\": 2}"
       acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "2"}
+    end
 
-      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
-               {:error, :duplicate_object_key, "a"}
+    test " dupes " do
+      json_string = """
+      {"a":"b","a":"c"}
+      """
+
+      acc = []
+      # WHILST we can implement the handler to prevent duplicate keys, the spec seems
+      # to want ton allow it. See the handler above for how one could prevent/error on
+      # them if one so chose: {:error, :duplicate_object_key, "a"}
+
+      # for now, last write wins I guess.
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "c"}
     end
 
     test "empty object keys are allowed" do
@@ -1198,21 +1244,43 @@ defmodule JxonIndexesTest do
       acc = []
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"" => "1"}
     end
+
+    test " {\"a\":[]} " do
+      json_string = "{\"a\":[]}"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => []}
+    end
+
+    test "" do
+      json_string = """
+      {"x":[{"id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}], "id": "yyyyyyyyyyyyyyyyyyyyyyyyy"}
+      """
+
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{
+               "id" => "yyyyyyyyyyyyyyyyyyyyyyyyy",
+               "x" => [%{"id" => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}]
+             }
+    end
   end
 
-  # describe "hexadigits" do
+  # describe "hexadigits ?" do
   # end
 
-  # describe "yes cases" do
-  #   for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
-  #     test "#{"./test/test_parsing/" <> f}" do
-  #       fp = "./test/test_parsing/" <> unquote(f)
-  #       json_string = File.read!(fp)
-  #       acc = []
-  #       refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
-  #     end
-  #   end
-  # end
+  describe "yes cases" do
+    for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
+      test "#{"./test/test_parsing/" <> f}" do
+        fp = "./test/test_parsing/" <> unquote(f)
+        json_string = File.read!(fp)
+        acc = []
+        # These just assert that we don't error. Really we should generate the text for
+        # each one and go back and write the expected result in each test, so we can assert
+        # we are actually creating something good.
+        refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
+      end
+    end
+  end
 
   # describe "i for optional" do
   #   for "i_" <> _ = f <- File.ls!("./test/test_parsing/") do

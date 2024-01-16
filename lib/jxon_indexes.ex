@@ -68,11 +68,14 @@ defmodule JxonIndexes do
   @doc """
   """
   def parse(document, handler, current_index, acc) do
-    parse(document, document, handler, current_index, acc)
+    case skip_whitespace(document, current_index) do
+      {index, <<>>} -> {:error, :empty_document, index}
+      {index, rest} -> parse(rest, document, handler, index, acc)
+    end
   end
 
   def parse(<<>>, original, handler, current_index, acc) do
-    handler.end_of_document(original, current_index, acc)
+    handler.end_of_document(original, current_index - 1, acc)
   end
 
   def parse(<<head::binary-size(1), rest::binary>>, original, handler, current_index, acc)
@@ -88,7 +91,7 @@ defmodule JxonIndexes do
     # the :object or :array because maybe it's faster? You don't have to interact with the atom table?
     case parse_object(rest, original, handler, current_index + 1, acc, [{@object, 1}]) do
       {:error, _, _} = error -> error
-      {index, rest, acc} -> parse_remaining_whitespace(rest, index, original, acc, handler)
+      {index, rest, acc, []} -> parse_remaining_whitespace(rest, index, original, acc, handler)
     end
   end
 
@@ -151,7 +154,7 @@ defmodule JxonIndexes do
         error
 
       {end_index, ""} ->
-        case acc = handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.do_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> handler.end_of_document(original, end_index - 1, acc)
         end
@@ -223,24 +226,20 @@ defmodule JxonIndexes do
 
       {end_index, rest, acc, depth_stack} ->
         # This is the space after the key.
-        case skip_whitespace(rest, end_index) do
+        {index, rest} = skip_whitespace(rest, end_index)
+
+        case parse_value(rest, original, handler, index, acc, depth_stack) do
           {:error, _, _} = error ->
             error
 
-          {index, rest} ->
-            case parse_value(rest, original, handler, index, acc, depth_stack) do
-              {:error, _, _} = error ->
-                error
+          {end_index, rest, acc, []} ->
+            {end_index, rest, acc, []}
 
-              {end_index, rest, acc, []} ->
-                {end_index, rest, acc}
-
-              {end_index, rest, acc, depth_stack} ->
-                case parse_comma(rest, end_index, depth_stack) do
-                  {:error, _, _} = error -> error
-                  {index, <<@close_array, _::bits>>} -> {:error, :unclosed_object, index - 1}
-                  {index, rest} -> key_value(rest, original, handler, index, acc, depth_stack)
-                end
+          {end_index, rest, acc, depth_stack} ->
+            case parse_comma(rest, end_index, depth_stack) do
+              {:error, _, _} = error -> error
+              {index, <<@close_array, _::bits>>} -> {:error, :unclosed_object, index - 1}
+              {index, rest} -> key_value(rest, original, handler, index, acc, depth_stack)
             end
         end
     end
@@ -483,7 +482,7 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        case acc = handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.do_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
         end
