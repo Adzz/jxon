@@ -106,41 +106,25 @@ defmodule JxonIndexes do
   # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
 
   # if it's 0 followed by a non digit then it's allowed? If it's followed by a digit it's not
-  def parse(
-        <<@zero, next::binary-size(1), _rest::bits>>,
-        _original,
-        _handler,
-        current_index,
-        _acc
-      )
+  def parse(<<@zero, next::binary-size(1), _rest::bits>>, _, _, current_index, _)
       when next in @all_digits do
     {:error, :leading_zero, current_index}
   end
 
-  def parse(
-        <<@minus, @zero, next::binary-size(1), _rest::bits>>,
-        _original,
-        _handler,
-        current_index,
-        _acc
-      )
+  def parse(<<@minus, @zero, next::binary-size(1), _rest::bits>>, _, _, index, _)
       when next in @all_digits do
     # This points to the 0 and not the '-'
-    {:error, :leading_zero, current_index + 1}
+    {:error, :leading_zero, index + 1}
   end
 
-  def parse(
-        <<@minus, digit::binary-size(1), number::bits>>,
-        original,
-        handler,
-        current_index,
-        acc
-      )
+  def parse(<<@minus, digit::binary-size(1), number::bits>>, original, handler, index, acc)
       when digit in @all_digits do
-    case parse_number(number, current_index + 2) do
+    case parse_number(number, index + 2) do
       {end_index, remaining} ->
-        acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
-        parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        case handler.do_negative_number(original, index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        end
 
       {:error, _, _} = error ->
         error
@@ -151,8 +135,10 @@ defmodule JxonIndexes do
       when byte in @all_digits do
     case parse_number(rest, current_index + 1) do
       {end_index, remaining} ->
-        acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
-        parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        case handler.do_positive_number(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        end
 
       {:error, _, _} = error ->
         error
@@ -165,12 +151,16 @@ defmodule JxonIndexes do
         error
 
       {end_index, ""} ->
-        acc = handler.do_string(original, current_index, end_index - 1, acc)
-        handler.end_of_document(original, end_index - 1, acc)
+        case acc = handler.do_string(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> handler.end_of_document(original, end_index - 1, acc)
+        end
 
       {end_index, remaining} ->
-        acc = handler.do_string(original, current_index, end_index - 1, acc)
-        parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        case handler.do_string(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(remaining, end_index, original, acc, handler)
+        end
     end
   end
 
@@ -180,8 +170,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_true(original, start_index, end_index - 1, acc)
-        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        case handler.do_true(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        end
     end
   end
 
@@ -191,8 +183,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_true(original, start_index, end_index - 1, acc)
-        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        case handler.do_true(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        end
     end
   end
 
@@ -202,8 +196,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_null(original, start_index, end_index - 1, acc)
-        parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        case handler.do_null(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
+        end
     end
   end
 
@@ -214,11 +210,13 @@ defmodule JxonIndexes do
   end
 
   defp parse_object(rest, original, handler, current_index, acc, depth_stack) do
-    acc = handler.start_of_object(original, current_index - 1, acc)
-    ban(rest, original, handler, current_index, acc, depth_stack)
+    case handler.start_of_object(original, current_index - 1, acc) do
+      {:error, _, _} = error -> error
+      acc -> key_value(rest, original, handler, current_index, acc, depth_stack)
+    end
   end
 
-  defp ban(rest, original, handler, current_index, acc, depth_stack) do
+  defp key_value(rest, original, handler, current_index, acc, depth_stack) do
     case parse_object_key(rest, original, handler, current_index, acc, depth_stack) do
       {:error, _, _} = error ->
         error
@@ -240,7 +238,8 @@ defmodule JxonIndexes do
               {end_index, rest, acc, depth_stack} ->
                 case parse_comma(rest, end_index, depth_stack) do
                   {:error, _, _} = error -> error
-                  {index, rest} -> parse_values(rest, original, handler, index, acc, depth_stack)
+                  {index, <<@close_array, _::bits>>} -> {:error, :unclosed_object, index - 1}
+                  {index, rest} -> key_value(rest, original, handler, index, acc, depth_stack)
                 end
             end
         end
@@ -259,11 +258,6 @@ defmodule JxonIndexes do
     parse_object_key(rest, original, handler, index + 1, acc, depth_stack)
   end
 
-  # Can't have empty object key.
-  defp parse_object_key(<<@quotation_mark, @quotation_mark, _rest::bits>>, _, _, index, _, _) do
-    {:error, :invalid_object_key, index}
-  end
-
   # can there be whitespace between the speech mark and colon? YES!
   defp parse_object_key(
          <<@quotation_mark, rest::bits>>,
@@ -278,11 +272,15 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.object_key(original, index, end_index - 1, acc)
+        case handler.object_key(original, index, end_index - 1, acc) do
+          {:error, _, _} = error ->
+            error
 
-        case parse_colon(rest, end_index) do
-          {:error, _, _} = error -> error
-          {end_index, rest} -> {end_index, rest, acc, depth_stack}
+          acc ->
+            case parse_colon(rest, end_index) do
+              {:error, _, _} = error -> error
+              {end_index, rest} -> {end_index, rest, acc, depth_stack}
+            end
         end
     end
   end
@@ -297,17 +295,21 @@ defmodule JxonIndexes do
        ) do
     # We also need to to the depth stack stuff... which means we have to pass it in or
     # special case it.
-    acc = handler.end_of_object(original, index, acc)
+    case handler.end_of_object(original, index, acc) do
+      {:error, _, _} = error ->
+        error
 
-    case head_depth do
-      {@object, 1} ->
-        {index + 1, rest, acc, rest_depth}
+      acc ->
+        case head_depth do
+          {@object, 1} ->
+            {index + 1, rest, acc, rest_depth}
 
-      {@object, count} ->
-        {index + 1, rest, acc, [{@object, count - 1} | rest_depth]}
+          {@object, count} ->
+            {index + 1, rest, acc, [{@object, count - 1} | rest_depth]}
 
-      {@array, _count} ->
-        {:error, :unopened_object, index}
+          {@array, _count} ->
+            {:error, :unopened_object, index}
+        end
     end
   end
 
@@ -322,23 +324,27 @@ defmodule JxonIndexes do
   # We don't check for open array because the caller already did that.
   defp parse_array(array_contents, original, handler, current_index, acc, depth_stack) do
     # current index points to head of array_contents, we want the char before ie the '['
-    acc = handler.start_of_array(original, current_index - 1, acc)
+    case handler.start_of_array(original, current_index - 1, acc) do
+      {:error, _, _} = error ->
+        error
 
-    case skip_whitespace(array_contents, current_index) do
-      {end_index, <<@comma, _::bits>>} ->
-        {:error, :leading_comma, end_index}
+      acc ->
+        case skip_whitespace(array_contents, current_index) do
+          {end_index, <<@comma, _::bits>>} ->
+            {:error, :leading_comma, end_index}
 
-      {end_index, rest} ->
-        case parse_values(rest, original, handler, end_index, acc, depth_stack) do
-          # Here we want to be like "if we see a comma then recur".
-          {:error, _, _} = error ->
-            error
+          {end_index, rest} ->
+            case parse_values(rest, original, handler, end_index, acc, depth_stack) do
+              # Here we want to be like "if we see a comma then recur".
+              {:error, _, _} = error ->
+                error
 
-          {end_index, <<>>, acc} ->
-            {end_index - 1, <<>>, acc, depth_stack}
+              {end_index, <<>>, acc} ->
+                {end_index - 1, <<>>, acc, depth_stack}
 
-          {end_index, rest, acc} ->
-            {end_index, rest, acc, depth_stack}
+              {end_index, rest, acc} ->
+                {end_index, rest, acc, depth_stack}
+            end
         end
     end
   end
@@ -367,20 +373,18 @@ defmodule JxonIndexes do
     if new_array_depth < 0 do
       {:error, :unopened_array, index}
     else
-      acc = handler.end_of_array(original, index, acc)
+      case handler.end_of_array(original, index, acc) do
+        {:error, _, _} = error ->
+          error
 
-      if new_array_depth == 0 do
-        {index + 1, rest, acc, rest_depth}
-      else
-        {index + 1, rest, acc, [{@array, new_array_depth} | rest_depth]}
+        acc ->
+          if new_array_depth == 0 do
+            {index + 1, rest, acc, rest_depth}
+          else
+            {index + 1, rest, acc, [{@array, new_array_depth} | rest_depth]}
+          end
       end
     end
-  end
-
-  # How can we tell the difference between "[ [ { \"a\": ] ]" and "[ [ { \"a\": 1 ] ]"
-  # The former is handled when we parse the colon. The latter is here.
-  defp parse_value(<<@close_array, _::bits>>, _, _, current_index, _, [{@object, _} | _]) do
-    {:error, :unclosed_object, current_index - 1}
   end
 
   defp parse_value(
@@ -393,19 +397,25 @@ defmodule JxonIndexes do
            head_depth | rest_depth
          ] = depth_stack
        ) do
-    acc = handler.start_of_array(original, index, acc)
+    case handler.start_of_array(original, index, acc) do
+      {:error, _, _} = error ->
+        error
 
-    case skip_whitespace(rest, index + 1) do
-      {end_index, <<@comma, _::bits>>} ->
-        {:error, :leading_comma, end_index}
+      acc ->
+        case skip_whitespace(rest, index + 1) do
+          {end_index, <<@comma, _::bits>>} ->
+            {:error, :leading_comma, end_index}
 
-      {index, rest} ->
-        case head_depth do
-          {@object, _count} ->
-            parse_value(rest, original, handler, index, acc, [{@array, 1} | depth_stack])
+          {index, rest} ->
+            case head_depth do
+              {@object, _count} ->
+                parse_value(rest, original, handler, index, acc, [{@array, 1} | depth_stack])
 
-          {@array, count} ->
-            parse_value(rest, original, handler, index, acc, [{@array, count + 1} | rest_depth])
+              {@array, count} ->
+                parse_value(rest, original, handler, index, acc, [
+                  {@array, count + 1} | rest_depth
+                ])
+            end
         end
     end
   end
@@ -442,12 +452,16 @@ defmodule JxonIndexes do
     if new_object_depth < 0 do
       {:error, :unopened_object, current_index}
     else
-      acc = handler.end_of_object(original, current_index, acc)
+      case handler.end_of_object(original, current_index, acc) do
+        {:error, _, _} = error ->
+          error
 
-      if new_object_depth == 0 do
-        {current_index + 1, rest, acc, rest_depth}
-      else
-        {current_index + 1, rest, acc, [{@object, new_object_depth} | rest_depth]}
+        acc ->
+          if new_object_depth == 0 do
+            {current_index + 1, rest, acc, rest_depth}
+          else
+            {current_index + 1, rest, acc, [{@object, new_object_depth} | rest_depth]}
+          end
       end
     end
   end
@@ -469,8 +483,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_string(original, current_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case acc = handler.do_string(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 
@@ -518,8 +534,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_negative_number(original, current_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case handler.do_negative_number(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 
@@ -539,8 +557,10 @@ defmodule JxonIndexes do
       {end_index, rest} ->
         # we subtract 1 because we are only sure we have finished parsing the number once
         # we have stepped past it. So end_index points to one char after the end of the number.
-        acc = handler.do_positive_number(original, current_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case handler.do_positive_number(original, current_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 
@@ -550,8 +570,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_true(original, start_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case handler.do_true(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 
@@ -561,8 +583,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_false(original, start_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case handler.do_false(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 
@@ -572,8 +596,10 @@ defmodule JxonIndexes do
         error
 
       {end_index, rest} ->
-        acc = handler.do_null(original, start_index, end_index - 1, acc)
-        {end_index, rest, acc, depth_stack}
+        case handler.do_null(original, start_index, end_index - 1, acc) do
+          {:error, _, _} = error -> error
+          acc -> {end_index, rest, acc, depth_stack}
+        end
     end
   end
 

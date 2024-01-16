@@ -120,7 +120,14 @@ defmodule JxonIndexesTest do
     end
 
     defp update_acc(value, [{key, :not_parsed_yet}, map | rest]) when is_map(map) do
-      [Map.put(map, key, value) | rest]
+      if Map.has_key?(map, key) do
+        # Now. Here is a good Q should the handler be able to halt the lexer? If we are going to
+        # do this then yes it has to be able to. Also means we could implement the pause / resume
+        # whilst we are at it.
+        {:error, :duplicate_object_key, key}
+      else
+        [Map.put(map, key, value) | rest]
+      end
     end
 
     defp update_acc(value, [list | rest]) when is_list(list) do
@@ -1150,15 +1157,47 @@ defmodule JxonIndexesTest do
       assert :binary.part(json_string, 11, 2) == "[ "
     end
 
-    @tag :t
     test " {} " do
       json_string = "{  }"
       acc = []
-
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{}
     end
 
-    # json_string = "[ {}"
+    test " [ {} " do
+      json_string = "[ {}"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :unclosed_array, 3}
+      assert :binary.part(json_string, 3, 1) == "}"
+    end
+
+    test " multiple element objects " do
+      json_string = "{ \"a\": 1, \"b\": 2}"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"a" => "1", "b" => "2"}
+    end
+
+    # Do we let the caller handle them? tempting but ultimately probs not. But, if we want
+    # to do it in the lexer then we have to store the set of keys at each depth, which
+    # ruins our chance of compressing the stack. It would also mean that we'd be saving the
+    # keysets at the same time that the handler is which seems wasteful... Finally there is
+    # also the case for allowing duplicate keys if the handler puts it into a keyword list
+    # for example. This is probably bad, but maybe there is a use case for that. Finally,
+    # when we come to ignoring values not specified in the schema do we want to blow up
+    # and stop the world if keys we don't even care about are duplicated? Perhaps not...
+    @tag :t
+    test "duplicate object keys is an error" do
+      json_string = "{ \"a\": 1, \"a\": 2}"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :duplicate_object_key, "a"}
+    end
+
+    test "empty object keys are allowed" do
+      json_string = "{ \"\": 1}"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{"" => "1"}
+    end
   end
 
   # describe "hexadigits" do
