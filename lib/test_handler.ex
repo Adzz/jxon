@@ -85,6 +85,8 @@ defmodule TestHandler do
         [[map | list] | rest]
 
       # |> IO.inspect(limit: :infinity, label: "end_of_object 1")
+      [value, {key, :not_parsed_yet}, map | rest] ->
+        [Map.put(map, key, value) | rest]
 
       acc ->
         acc
