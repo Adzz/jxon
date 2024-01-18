@@ -762,16 +762,27 @@ defmodule JxonIndexesTest do
     end
 
     test "unclosed" do
-      json_string = "[ {"
+      json_string = "[ {\"q\" : ["
       acc = []
-      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[]]
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :unclosed_array, 9}
+      assert :binary.part(json_string, 9, 1) == "["
+    end
+
+    test "unclosed 2" do
+      json_string = "{\"q\" : {"
+      acc = []
+
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
+               {:error, :invalid_object_key, 7}
+
+      assert :binary.part(json_string, 7, 1) == "{"
     end
 
     test "nested unclosed array" do
       json_string = "[[]"
       acc = []
-      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :unclosed_array, 2}
-      assert :binary.part(json_string, 2, 1) == "]"
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == {:error, :unclosed_array, 1}
+      assert :binary.part(json_string, 1, 1) == "["
     end
 
     test "multiple nested array" do
@@ -972,10 +983,9 @@ defmodule JxonIndexesTest do
     end
 
     test "not closing an object is an error." do
-      # Todo put the number back
       json_string = "[ [ { \"a\": 1] ]"
       acc = []
-      # Should this be missing comma? unclosed object really
+
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) ==
                {:error, :unclosed_object, 11}
 
@@ -1116,7 +1126,7 @@ defmodule JxonIndexesTest do
       """
 
       acc = []
-      :binary.part(json_string, 63, 20) |> IO.inspect(limit: :infinity, label: "")
+      :binary.part(json_string, 63, 20)
 
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == %{
                "id" => "yyyyyyyyyyyyyyyyyyyyyyyyy",
@@ -1154,19 +1164,19 @@ defmodule JxonIndexesTest do
   # describe "hexadigits ?" do
   # end
 
-  # describe "yes cases" do
-  #   for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
-  #     test "#{"./test/test_parsing/" <> f}" do
-  #       fp = "./test/test_parsing/" <> unquote(f)
-  #       json_string = File.read!(fp)
-  #       acc = []
-  #       # These just assert that we don't error. Really we should generate the text for
-  #       # each one and go back and write the expected result in each test, so we can assert
-  #       # we are actually creating something good.
-  #       refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
-  #     end
-  #   end
-  # end
+  describe "yes cases" do
+    for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
+      test "#{"./test/test_parsing/" <> f}" do
+        fp = "./test/test_parsing/" <> unquote(f)
+        json_string = File.read!(fp)
+        acc = []
+        # These just assert that we don't error. Really we should generate the text for
+        # each one and go back and write the expected result in each test, so we can assert
+        # we are actually creating something good.
+        refute match?({:error, _, _}, JxonIndexes.parse(json_string, TestHandler, 0, acc))
+      end
+    end
+  end
 
   # describe "i for optional" do
   #   for "i_" <> _ = f <- File.ls!("./test/test_parsing/") do

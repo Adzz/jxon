@@ -518,10 +518,11 @@ defmodule JxonIndexes do
   end
 
   defp parse_value(<<>>, _original, _handler, end_index, _acc, depth_stack) do
-    raise "hell"
-
     case hd(depth_stack) do
+      # I don't think we can actually hit this case because we check for valid keys
+      # immediately after the object open.
       {@object, _count} -> {:error, :unclosed_object, end_index - 1}
+      # This we can hit.
       {@array, _count} -> {:error, :unclosed_array, end_index - 1}
     end
   end

@@ -80,8 +80,6 @@ defmodule TestHandler do
       raise "Object end index error"
     end
 
-    acc |> IO.inspect(limit: :infinity, label: "end_of_object")
-
     case acc do
       [map, list | rest] when is_list(list) ->
         [[map | list] | rest]
