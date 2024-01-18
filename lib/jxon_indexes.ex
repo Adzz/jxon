@@ -214,20 +214,25 @@ defmodule JxonIndexes do
 
   defp parse_object(rest, original, handler, current_index, acc, depth_stack) do
     case handler.start_of_object(original, current_index - 1, acc) do
-      {:error, _, _} = error -> error
-      acc -> key_value(rest, original, handler, current_index, acc, depth_stack)
-    end
-  end
-
-  defp key_value(rest, original, handler, current_index, acc, depth_stack) do
-    case parse_object_key(rest, original, handler, current_index, acc, depth_stack) do
       {:error, _, _} = error ->
         error
 
-      {end_index, rest, acc, []} ->
-        {end_index, rest, acc, []}
+      acc ->
+        {index, rest} = skip_whitespace(rest, current_index)
+        key_value(rest, original, handler, index, acc, depth_stack)
+    end
+  end
 
-      {end_index, rest, acc, depth_stack} ->
+  defp key_value(<<@close_object, rest::bits>>, original, handler, index, acc, depth_stack) do
+    close_object(rest, original, handler, index, acc, depth_stack)
+  end
+
+  defp key_value(rest, original, handler, current_index, acc, depth_stack) do
+    case parse_object_key(rest, original, handler, current_index, acc) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest, acc} ->
         # This is the space after the key
         {index, rest} = skip_whitespace(rest, end_index)
 
@@ -248,27 +253,8 @@ defmodule JxonIndexes do
     end
   end
 
-  defp parse_object_key(
-         <<head::binary-size(1), rest::binary>>,
-         original,
-         handler,
-         index,
-         acc,
-         depth_stack
-       )
-       when head in @whitespace do
-    parse_object_key(rest, original, handler, index + 1, acc, depth_stack)
-  end
-
   # can there be whitespace between the speech mark and colon? YES!
-  defp parse_object_key(
-         <<@quotation_mark, rest::bits>>,
-         original,
-         handler,
-         index,
-         acc,
-         depth_stack
-       ) do
+  defp parse_object_key(<<@quotation_mark, rest::bits>>, original, handler, index, acc) do
     case parse_string(rest, index + 1) do
       {:error, _, _} = error ->
         error
@@ -281,43 +267,17 @@ defmodule JxonIndexes do
           acc ->
             case parse_colon(rest, end_index) do
               {:error, _, _} = error -> error
-              {end_index, rest} -> {end_index, rest, acc, depth_stack}
+              {end_index, rest} -> {end_index, rest, acc}
             end
         end
     end
   end
 
-  defp parse_object_key(
-         <<@close_object, rest::bits>>,
-         original,
-         handler,
-         index,
-         acc,
-         [head_depth | rest_depth]
-       ) do
-    case handler.end_of_object(original, index, acc) do
-      {:error, _, _} = error ->
-        error
-
-      acc ->
-        case head_depth do
-          {@object, 1} ->
-            {index + 1, rest, acc, rest_depth}
-
-          {@object, count} ->
-            {index + 1, rest, acc, [{@object, count - 1} | rest_depth]}
-
-          {@array, _count} ->
-            {:error, :unopened_object, index}
-        end
-    end
-  end
-
-  defp parse_object_key("", _original, _handler, index, _acc, _depth_stack) do
+  defp parse_object_key("", _original, _handler, index, _acc) do
     {:error, :invalid_object_key, index - 1}
   end
 
-  defp parse_object_key(_rest, _original, _handler, index, _acc, _depth_stack) do
+  defp parse_object_key(_rest, _original, _handler, index, _acc) do
     {:error, :invalid_object_key, index}
   end
 
@@ -336,36 +296,15 @@ defmodule JxonIndexes do
           {end_index, rest} ->
             case parse_values(rest, original, handler, end_index, acc, depth_stack) do
               # Here we want to be like "if we see a comma then recur".
-              {:error, _, _} = error ->
-                error
-
-              {end_index, <<>>, acc} ->
-                {end_index - 1, <<>>, acc, depth_stack}
-
-              {end_index, rest, acc} ->
-                {end_index, rest, acc, depth_stack}
+              {:error, _, _} = error -> error
+              {end_index, <<>>, acc, depth_stack} -> {end_index - 1, <<>>, acc, depth_stack}
+              {end_index, rest, acc, depth_stack} -> {end_index, rest, acc, depth_stack}
             end
         end
     end
   end
 
-  defp parse_values(rest, original, handler, index, acc, depth_stack) do
-    case parse_value(rest, original, handler, index, acc, depth_stack) do
-      {:error, _, _} = error ->
-        error
-
-      {end_index, rest, acc, []} ->
-        {end_index, rest, acc}
-
-      {end_index, rest, acc, depth_stack} ->
-        case parse_comma(rest, end_index, depth_stack) do
-          {:error, _, _} = error -> error
-          {end_index, rest} -> parse_values(rest, original, handler, end_index, acc, depth_stack)
-        end
-    end
-  end
-
-  defp parse_value(<<@close_array, rest::bits>>, original, handler, index, acc, [
+  defp parse_values(<<@close_array, rest::bits>>, original, handler, index, acc, [
          {@array, array_depth} | rest_depth
        ]) do
     new_array_depth = array_depth - 1
@@ -387,36 +326,36 @@ defmodule JxonIndexes do
     end
   end
 
+  defp parse_values(rest, original, handler, index, acc, depth_stack) do
+    case parse_value(rest, original, handler, index, acc, depth_stack) do
+      {:error, _, _} = error ->
+        error
+
+      {end_index, rest, acc, []} ->
+        {end_index, rest, acc, []}
+
+      {end_index, rest, acc, depth_stack} ->
+        case parse_comma(rest, end_index, depth_stack) do
+          {:error, _, _} = error -> error
+          {end_index, rest} -> parse_values(rest, original, handler, end_index, acc, depth_stack)
+        end
+    end
+  end
+
   defp parse_value(
          <<@open_array, rest::bits>>,
          original,
          handler,
          index,
          acc,
-         [
-           head_depth | rest_depth
-         ] = depth_stack
+         [head_depth | rest_depth] = depth_stack
        ) do
-    case handler.start_of_array(original, index, acc) do
-      {:error, _, _} = error ->
-        error
+    case head_depth do
+      {@object, _count} ->
+        parse_array(rest, original, handler, index + 1, acc, [{@array, 1} | depth_stack])
 
-      acc ->
-        case skip_whitespace(rest, index + 1) do
-          {end_index, <<@comma, _::bits>>} ->
-            {:error, :leading_comma, end_index}
-
-          {index, rest} ->
-            case head_depth do
-              {@object, _count} ->
-                parse_value(rest, original, handler, index, acc, [{@array, 1} | depth_stack])
-
-              {@array, count} ->
-                parse_value(rest, original, handler, index, acc, [
-                  {@array, count + 1} | rest_depth
-                ])
-            end
-        end
+      {@array, count} ->
+        parse_array(rest, original, handler, index + 1, acc, [{@array, count + 1} | rest_depth])
     end
   end
 
@@ -428,8 +367,6 @@ defmodule JxonIndexes do
          acc,
          [head_depth | rest_depth] = depth_stack
        ) do
-    # There is a reason why we didn't do this for Array. I can't remember it... Should we not
-    # do this because of that?
     case head_depth do
       {@object, count} ->
         parse_object(rest, original, handler, index + 1, acc, [{@object, count + 1} | rest_depth])
@@ -439,35 +376,8 @@ defmodule JxonIndexes do
     end
   end
 
-  defp parse_value(
-         <<@close_object, rest::bits>>,
-         original,
-         handler,
-         current_index,
-         acc,
-         [{@object, object_depth} | rest_depth]
-       ) do
-    new_object_depth = object_depth - 1
-
-    if new_object_depth < 0 do
-      {:error, :unopened_object, current_index}
-    else
-      case handler.end_of_object(original, current_index, acc) do
-        {:error, _, _} = error ->
-          error
-
-        acc ->
-          if new_object_depth == 0 do
-            {current_index + 1, rest, acc, rest_depth}
-          else
-            {current_index + 1, rest, acc, [{@object, new_object_depth} | rest_depth]}
-          end
-      end
-    end
-  end
-
-  defp parse_value(<<@close_object, _::bits>>, _, _, current_index, _, [{@array, _} | _]) do
-    {:error, :unclosed_array, current_index - 1}
+  defp parse_value(<<@close_object, rest::bits>>, original, handler, index, acc, depth_stack) do
+    close_object(rest, original, handler, index, acc, depth_stack)
   end
 
   defp parse_value(
@@ -608,6 +518,8 @@ defmodule JxonIndexes do
   end
 
   defp parse_value(<<>>, _original, _handler, end_index, _acc, depth_stack) do
+    raise "hell"
+
     case hd(depth_stack) do
       {@object, _count} -> {:error, :unclosed_object, end_index - 1}
       {@array, _count} -> {:error, :unclosed_array, end_index - 1}
@@ -621,6 +533,30 @@ defmodule JxonIndexes do
 
   defp parse_value(_rest, _original, _handler, index, _acc, _) do
     {:error, :invalid_json_character, index}
+  end
+
+  defp close_object(rest, original, handler, index, acc, [{@object, object_depth} | rest_depth]) do
+    new_object_depth = object_depth - 1
+
+    if new_object_depth < 0 do
+      {:error, :unopened_object, index}
+    else
+      case handler.end_of_object(original, index, acc) do
+        {:error, _, _} = error ->
+          error
+
+        acc ->
+          if new_object_depth == 0 do
+            {index + 1, rest, acc, rest_depth}
+          else
+            {index + 1, rest, acc, [{@object, new_object_depth} | rest_depth]}
+          end
+      end
+    end
+  end
+
+  defp close_object(_, _, _, index, _, [{@array, _} | _]) do
+    {:error, :unclosed_array, index - 1}
   end
 
   defp parse_colon(rest, index) do
@@ -665,8 +601,11 @@ defmodule JxonIndexes do
 
       {end_index, ""} ->
         case hd(depth_stack) do
-          {@object, _count} -> {:error, :unclosed_object, end_index - 1}
-          {@array, _count} -> {:error, :unclosed_array, end_index - 1}
+          {@object, _count} ->
+            {:error, :unclosed_object, end_index - 1}
+
+          {@array, _count} ->
+            {:error, :unclosed_array, end_index - 1}
         end
 
       {end_index, <<@close_array, _rest::bits>> = json} ->
