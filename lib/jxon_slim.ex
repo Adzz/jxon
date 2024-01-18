@@ -540,11 +540,8 @@ defmodule JxonSlim do
 
       {end_index, ""} ->
         case hd(depth_stack) do
-          {@object, _count} ->
-            {:error, :unclosed_object, end_index - 1}
-
-          {@array, _count} ->
-            {:error, :unclosed_array, end_index - 1}
+          {@object, _count} -> {:error, :unclosed_object, end_index - 1}
+          {@array, _count} -> {:error, :unclosed_array, end_index - 1}
         end
 
       {end_index, <<@close_array, _rest::bits>> = json} ->

@@ -1,6 +1,5 @@
 defmodule JxonSlimTest do
   use ExUnit.Case
-  use ExUnit.Case
 
   describe "bare values" do
     @describetag :values
@@ -1330,7 +1329,6 @@ defmodule JxonSlimTest do
              ]
     end
 
-    @tag :t
     test "lists of objects [{}, {}, {}, {}]" do
       json_string = "[{}, {}, {}, {}]"
       acc = []
