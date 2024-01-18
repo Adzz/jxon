@@ -761,6 +761,12 @@ defmodule JxonIndexesTest do
       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[]]
     end
 
+    test "unclosed" do
+      json_string = "[ {"
+      acc = []
+      assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == [[]]
+    end
+
     test "nested unclosed array" do
       json_string = "[[]"
       acc = []
