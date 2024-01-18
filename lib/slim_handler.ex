@@ -26,7 +26,25 @@ defmodule SlimHandler do
 
   @moduledoc """
   This is an experiment to see if we gain anything from having the stuff be one flat list
-  of things.
+  of things. Here is an example output:
+
+      json = "[true, false, null, 1, 2, 3, 4, 5]"
+
+      [
+        {:array_start, 0, 1},
+        {:t, 1, 4},
+        {:f, 7, 5},
+        {:n, 14, 4},
+        {:positive_number, 20, 1},
+        {:positive_number, 22, 1},
+        {:positive_number, 25, 1},
+        {:positive_number, 28, 1},
+        {:positive_number, 31, 1},
+        {:array_end, 32, 1}
+      ]
+
+  We now have to figure out a good way to ingest that and turn it into a DOM of some kind.
+  Can we use schemas to filter down the data we keep? Do we have to verify it's correct.
   """
 
   def do_true(start_index, end_index, acc) when start_index <= end_index do
