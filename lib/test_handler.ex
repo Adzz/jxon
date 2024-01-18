@@ -6,6 +6,8 @@ defmodule TestHandler do
   jump - how many lines to jump to get to the Nth element.... Would love to play with this.
   """
 
+  # We don't even really need to extract the value. Or we could but do that as a separate pass?
+  # That would reduce the mems I think..
   def do_true(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # we add 1 because the indexes are 0 indexed but length isn't.
     len = end_index - start_index + 1
