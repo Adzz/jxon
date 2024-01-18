@@ -22,7 +22,8 @@ defmodule Jxon.MixProject do
   defp deps do
     [
       # {:dep_from_hexpm, "~> 0.3.0"},
-      {:benchee, ">=0.0.0", only: [:dev]}
+      {:benchee, ">=0.0.0", only: [:dev]},
+      {:jason, ">=0.0.0", only: [:dev]}
     ]
   end
 end

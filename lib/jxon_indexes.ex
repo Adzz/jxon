@@ -253,7 +253,6 @@ defmodule JxonIndexes do
     end
   end
 
-  # can there be whitespace between the speech mark and colon? YES!
   defp parse_object_key(<<@quotation_mark, rest::bits>>, original, handler, index, acc) do
     case parse_string(rest, index + 1) do
       {:error, _, _} = error ->
@@ -659,8 +658,7 @@ defmodule JxonIndexes do
   defp parse_string(<<@quotation_mark, rest::bits>>, end_character_index) do
     # This means we keep the invariant that index points to the head of rest. But means
     # (because we are not emitting here) that we have to - 1 from the index when we emit in
-    # the caller. I think other parsers emit here, eg the numbers or arrays. We should make
-    # them all the same at some point.
+    # the caller.
     {end_character_index + 1, rest}
   end
 
@@ -719,31 +717,25 @@ defmodule JxonIndexes do
   # we return an appropriate error; either multiple bare values or invalid json char.
   defp parse_remaining_whitespace(
          <<head::binary-size(1), rest::binary>>,
-         current_index,
+         index,
          original,
          acc,
          handler
        )
        when head in @whitespace do
-    parse_remaining_whitespace(rest, current_index + 1, original, acc, handler)
+    parse_remaining_whitespace(rest, index + 1, original, acc, handler)
   end
 
-  defp parse_remaining_whitespace(<<>>, current_index, original, acc, handler) do
-    handler.end_of_document(original, current_index - 1, acc)
+  defp parse_remaining_whitespace(<<>>, index, original, acc, handler) do
+    handler.end_of_document(original, index - 1, acc)
   end
 
-  defp parse_remaining_whitespace(
-         <<byte::binary-size(1), _rest::bits>>,
-         problematic_char_index,
-         _original,
-         _acc,
-         _handler
-       )
+  defp parse_remaining_whitespace(<<byte::binary-size(1), _::bits>>, index, _, _, _)
        when byte in @value_indicators do
-    {:error, :multiple_bare_values, problematic_char_index}
+    {:error, :multiple_bare_values, index}
   end
 
-  defp parse_remaining_whitespace(_rest, current_index, _original, _acc, _handler) do
-    {:error, :invalid_json_character, current_index}
+  defp parse_remaining_whitespace(_rest, index, _, _, _) do
+    {:error, :invalid_json_character, index}
   end
 end

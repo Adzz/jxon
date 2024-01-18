@@ -1161,9 +1161,6 @@ defmodule JxonIndexesTest do
     end
   end
 
-  # describe "hexadigits ?" do
-  # end
-
   describe "yes cases" do
     for "y_" <> _ = f <- File.ls!("./test/test_parsing/") do
       test "#{"./test/test_parsing/" <> f}" do
