@@ -18,7 +18,7 @@ defmodule JxonSlim do
   @close_array <<0x5D>>
   @open_object <<0x7B>>
   @close_object <<0x7D>>
-  # @plus <<0x2B>>
+  @plus <<0x2B>>
   @minus <<0x2D>>
   @zero <<0x30>>
   @digits [
@@ -77,41 +77,45 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@zero, next::binary-size(1), _rest::bits>>, _, current_index, _)
-      when next in @all_digits do
-    {:error, :leading_zero, current_index}
-  end
-
-  def parse(<<@minus, @zero, next::binary-size(1), _rest::bits>>, _, index, _)
-      when next in @all_digits do
-    {:error, :leading_zero, index + 1}
-  end
-
-  def parse(<<@minus, digit::binary-size(1), number::bits>>, handler, index, acc)
-      when digit in @all_digits do
-    case parse_number(number, index + 2) do
-      {end_index, remaining} ->
-        case handler.do_negative_number(index, end_index - 1, acc) do
-          {:error, _, _} = error -> error
-          acc -> parse_remaining_whitespace(remaining, end_index, acc, handler)
-        end
-
-      {:error, _, _} = error ->
-        error
+  for digit <- @all_digits do
+    def parse(<<@zero, unquote(digit), _rest::bits>>, _, current_index, _) do
+      {:error, :leading_zero, current_index}
     end
   end
 
-  def parse(<<byte::binary-size(1), rest::bits>>, handler, current_index, acc)
-      when byte in @all_digits do
-    case parse_number(rest, current_index + 1) do
-      {end_index, remaining} ->
-        case handler.do_positive_number(current_index, end_index - 1, acc) do
-          {:error, _, _} = error -> error
-          acc -> parse_remaining_whitespace(remaining, end_index, acc, handler)
-        end
+  for digit <- @all_digits do
+    def parse(<<@minus, @zero, unquote(digit), _rest::bits>>, _, index, _) do
+      {:error, :leading_zero, index + 1}
+    end
+  end
 
-      {:error, _, _} = error ->
-        error
+  for digit <- @all_digits do
+    def parse(<<@minus, unquote(digit), number::bits>>, handler, index, acc) do
+      case parse_number(number, index + 2) do
+        {end_index, remaining} ->
+          case handler.do_negative_number(index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> parse_remaining_whitespace(remaining, end_index, acc, handler)
+          end
+
+        {:error, _, _} = error ->
+          error
+      end
+    end
+  end
+
+  for digit <- @all_digits do
+    def parse(<<unquote(digit), rest::bits>>, handler, current_index, acc) do
+      case parse_number(rest, current_index + 1) do
+        {end_index, remaining} ->
+          case handler.do_positive_number(current_index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> parse_remaining_whitespace(remaining, end_index, acc, handler)
+          end
+
+        {:error, _, _} = error ->
+          error
+      end
     end
   end
 
@@ -354,61 +358,60 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_value(<<head::binary-size(1), rest::binary>>, handler, index, acc, depth_stack)
-       when head in @whitespace do
-    parse_value(rest, handler, index + 1, acc, depth_stack)
-  end
-
-  defp parse_value(<<@zero, next::binary-size(1), _::bits>>, _, current_index, _, _)
-       when next in @all_digits do
-    {:error, :leading_zero, current_index}
-  end
-
-  defp parse_value(<<@minus, @zero, next::binary-size(1), _rest::bits>>, _, current_index, _, _)
-       when next in @all_digits do
-    # This points to the 0 and not the '-'
-    {:error, :leading_zero, current_index + 1}
-  end
-
-  defp parse_value(
-         <<@minus, digit::binary-size(1), number::bits>>,
-         handler,
-         current_index,
-         acc,
-         depth_stack
-       )
-       when digit in @all_digits do
-    case parse_number(number, current_index + 2) do
-      {:error, _, _} = error ->
-        error
-
-      {end_index, rest} ->
-        case handler.do_negative_number(current_index, end_index - 1, acc) do
-          {:error, _, _} = error -> error
-          acc -> {end_index, rest, acc, depth_stack}
-        end
+  for space <- @whitespace do
+    defp parse_value(<<unquote(space), rest::binary>>, handler, index, acc, depth_stack) do
+      parse_value(rest, handler, index + 1, acc, depth_stack)
     end
   end
 
-  defp parse_value(
-         <<byte::binary-size(1), _::bits>> = json,
-         handler,
-         current_index,
-         acc,
-         depth_stack
-       )
-       when byte in @all_digits do
-    case parse_number(json, current_index) do
-      {:error, _, _} = error ->
-        error
+  for digit <- @all_digits do
+    defp parse_value(<<@zero, unquote(digit), _::bits>>, _, current_index, _, _) do
+      {:error, :leading_zero, current_index}
+    end
+  end
 
-      {end_index, rest} ->
-        # we subtract 1 because we are only sure we have finished parsing the number once
-        # we have stepped past it. So end_index points to one char after the end of the number.
-        case handler.do_positive_number(current_index, end_index - 1, acc) do
-          {:error, _, _} = error -> error
-          acc -> {end_index, rest, acc, depth_stack}
-        end
+  for next <- @all_digits do
+    defp parse_value(<<@minus, @zero, unquote(next), _rest::bits>>, _, current_index, _, _) do
+      # This points to the 0 and not the '-'
+      {:error, :leading_zero, current_index + 1}
+    end
+  end
+
+  for digit <- @all_digits do
+    defp parse_value(
+           <<@minus, unquote(digit), number::bits>>,
+           handler,
+           current_index,
+           acc,
+           depth_stack
+         ) do
+      case parse_number(number, current_index + 2) do
+        {:error, _, _} = error ->
+          error
+
+        {end_index, rest} ->
+          case handler.do_negative_number(current_index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> {end_index, rest, acc, depth_stack}
+          end
+      end
+    end
+  end
+
+  for digit <- @all_digits do
+    defp parse_value(<<unquote(digit), _::bits>> = json, handler, current_index, acc, depth_stack) do
+      case parse_number(json, current_index) do
+        {:error, _, _} = error ->
+          error
+
+        {end_index, rest} ->
+          # we subtract 1 because we are only sure we have finished parsing the number once
+          # we have stepped past it. So end_index points to one char after the end of the number.
+          case handler.do_positive_number(current_index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> {end_index, rest, acc, depth_stack}
+          end
+      end
     end
   end
 
@@ -465,9 +468,10 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_value(<<byte::binary-size(1), _::bits>>, _, problematic_char_index, _, _)
-       when byte in @value_indicators do
-    {:error, :multiple_bare_values, problematic_char_index}
+  for byte <- @value_indicators do
+    defp parse_value(<<unquote(byte), _::bits>>, _, problematic_char_index, _, _) do
+      {:error, :multiple_bare_values, problematic_char_index}
+    end
   end
 
   defp parse_value(_rest, _handler, index, _acc, _) do
@@ -581,8 +585,10 @@ defmodule JxonSlim do
   defp parse_null("u" <> _, current_index), do: {:error, :invalid_boolean, current_index + 1}
   defp parse_null(_, current_index), do: {:error, :invalid_boolean, current_index}
 
-  defp skip_whitespace(<<head::binary-size(1), rest::binary>>, index) when head in @whitespace do
-    skip_whitespace(rest, index + 1)
+  for space <- @whitespace do
+    defp skip_whitespace(<<unquote(space), rest::binary>>, index) do
+      skip_whitespace(rest, index + 1)
+    end
   end
 
   defp skip_whitespace(remaining, index), do: {index, remaining}
@@ -622,8 +628,10 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_digits(<<byte::binary-size(1), rest::bits>>, index) when byte in @all_digits do
-    parse_digits(rest, index + 1)
+  for digit <- @all_digits do
+    defp parse_digits(<<unquote(digit), rest::bits>>, index) do
+      parse_digits(rest, index + 1)
+    end
   end
 
   defp parse_digits(rest, index), do: {index, rest}
@@ -635,31 +643,36 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_exponent(<<sign, digit, rest::bits>>, index)
-       when sign in '+-' and digit in '0123456789' do
-    parse_digits(rest, index + 2)
+  for sign <- [@plus, @minus], digit <- @all_digits do
+    defp parse_exponent(<<unquote(sign), unquote(digit), rest::bits>>, index) do
+      parse_digits(rest, index + 2)
+    end
   end
 
-  defp parse_exponent(<<digit, rest::bits>>, index) when digit in '0123456789' do
-    parse_digits(rest, index + 1)
+  for digit <- @all_digits do
+    defp parse_exponent(<<unquote(digit), rest::bits>>, index) do
+      parse_digits(rest, index + 1)
+    end
   end
 
   defp parse_exponent(_rest, index) do
     {:error, :invalid_exponent, index}
   end
 
-  defp parse_remaining_whitespace(<<head::binary-size(1), rest::binary>>, index, acc, handler)
-       when head in @whitespace do
-    parse_remaining_whitespace(rest, index + 1, acc, handler)
+  for head <- @whitespace do
+    defp parse_remaining_whitespace(<<unquote(head), rest::binary>>, index, acc, handler) do
+      parse_remaining_whitespace(rest, index + 1, acc, handler)
+    end
   end
 
   defp parse_remaining_whitespace(<<>>, index, acc, handler) do
     handler.end_of_document(index - 1, acc)
   end
 
-  defp parse_remaining_whitespace(<<byte::binary-size(1), _::bits>>, index, _, _)
-       when byte in @value_indicators do
-    {:error, :multiple_bare_values, index}
+  for byte <- @value_indicators do
+    defp parse_remaining_whitespace(<<unquote(byte), _::bits>>, index, _, _) do
+      {:error, :multiple_bare_values, index}
+    end
   end
 
   defp parse_remaining_whitespace(_rest, index, _, _) do

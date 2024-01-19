@@ -1,26 +1,30 @@
 decode_jobs = %{
   "Jason" => fn json -> Jason.decode!(json) end,
-  # "Poison" => fn {json, _} -> Poison.decode!(json) end,
-  # "JSX" => fn {json, _} -> JSX.decode!(json, [:strict]) end,
-  # "Tiny" => fn {json, _} -> Tiny.decode!(json) end,
-  # "jsone" => fn {json, _} -> :jsone.decode(json) end,
-  # "jiffy" => fn {json, _} -> :jiffy.decode(json, [:return_maps, :use_nil]) end,
-  # "JSON" => fn {json, _} -> JSON.decode!(json) end
-  "JXON" => fn json -> JxonIndexes.parse(json, TestHandler, 0, []) end
+  "Poison" => fn json -> Poison.decode!(json) end,
+  # "JSX" => fn json -> JSX.decode!(json, [:strict]) end,
+  # "Tiny" => fn json -> Tiny.decode!(json) end,
+  # "jsone" => fn json -> :jsone.decode(json) end,
+  # "jiffy" => fn json -> :jiffy.decode(json, [:return_maps, :use_nil]) end,
+  # "JSON" => fn json -> JSON.decode!(json) end
+  # "JXON index" => fn json -> JxonIndexes.parse(json, TestHandler, 0, []) end,
+  # "JXON cast" => fn json -> JxonIndexes.parse(json, CastingHandler, 0, []) end
+  # "JXON slim" => fn json -> JxonSlim.parse(json, SlimHandler, 0, []) end,
+  "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end
   # "binary_to_term/1" => fn {_, etf} -> :erlang.binary_to_term(etf) end,
 }
 
 decode_inputs = [
-  "GitHub",
-  "Giphy",
-  "GovTrack",
-  "Blockchain",
-  "Pokedex",
-  "JSON Generator",
-  "JSON Generator (Pretty)",
-  "UTF-8 escaped",
-  "UTF-8 unescaped",
-  "Issue 90"
+  # "GitHub",
+  # "Giphy",
+  # GovTrack is 3.9mb file.
+  "GovTrack"
+  # "Blockchain",
+  # "Pokedex",
+  # "JSON Generator",
+  # "JSON Generator (Pretty)",
+  # "UTF-8 escaped",
+  # "UTF-8 unescaped",
+  # "Issue 90"
 ]
 
 read_data = fn name ->
