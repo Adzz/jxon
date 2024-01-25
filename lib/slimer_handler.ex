@@ -12,9 +12,9 @@ defmodule SlimerHandler do
   # @array_start 9
   # @array_end 10
 
-  @true_ :t
-  @false_ :f
-  @null_ :n
+  # @true_ :t
+  # @false_ :f
+  # @null_ :n
   @string :string
   @positive_number :positive_number
   @negative_number :negative_number
@@ -129,6 +129,6 @@ defmodule SlimerHandler do
   end
 
   def end_of_document(_end_index, acc) do
-    Enum.reverse(acc)
+    acc
   end
 end

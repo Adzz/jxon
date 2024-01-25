@@ -623,6 +623,18 @@ defmodule JxonSlimTest do
 
   describe "arrays" do
     @describetag :arrays
+
+    test " [\"a\"] " do
+      json_string = File.read!("./test/test_parsing/y_structure_trailing_newline.json")
+      acc = []
+
+      assert JxonSlim.parse(json_string, SlimHandler, 0, acc) == [
+               {:array_start, 0, 1},
+               {:string, 1, 1},
+               {:array_end, 4, 1}
+             ]
+    end
+
     test "open array whitespace and an error is an error" do
       json_string = "[ b "
       acc = []
@@ -950,6 +962,17 @@ defmodule JxonSlimTest do
                {:error, :invalid_json_character, 11}
 
       assert :binary.part(json_string, 11, 1) == "]"
+    end
+
+    test " [0e+1] " do
+      json_string = "[0e+1]"
+      acc = []
+
+      assert JxonSlim.parse(json_string, SlimHandler, 0, acc) == [
+               {:array_start, 0, 1},
+               {:positive_number, 1, 4},
+               {:array_end, 5, 1}
+             ]
     end
 
     test "unopened array example" do

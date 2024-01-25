@@ -54,26 +54,62 @@ defmodule JxonSlim do
   @object 1
   @array 0
 
+  # OKAY So this is a good read. https://rhye.org/post/erlang-binary-matching-performance/
+
+  # I think the idea here is when we do things like "skip_whitespace" we don't actually
+  # want to return rest. We want to just return the count of how many to skip AND THEN
+  # back in the caller we want to bump along that many... I think?
+
   def parse(<<>>, handler, current_index, acc) do
     handler.end_of_document(current_index - 1, acc)
   end
 
-  def parse(<<head::binary-size(1), rest::binary>>, handler, current_index, acc)
-      when head in @whitespace do
-    parse(rest, handler, current_index + 1, acc)
+  for space <- @whitespace do
+    def parse(<<unquote(space), rest::binary>>, handler, current_index, acc) do
+      parse(rest, handler, current_index + 1, acc)
+    end
   end
 
   def parse(<<@open_object, rest::bits>>, handler, current_index, acc) do
     case parse_object(rest, handler, current_index + 1, acc, [{@object, 1}]) do
-      {:error, _, _} = error -> error
-      {index, rest, acc, []} -> parse_remaining_whitespace(rest, index, acc, handler)
+      {:error, _, _} = error ->
+        error
+
+      {index, actual_rest, acc, []} ->
+        # <<_rest::binary-size(index - 1), actual_rest::bits>> = rest
+        parse_remaining_whitespace(actual_rest, index, acc, handler)
     end
   end
 
   def parse(<<@open_array, rest::bits>>, handler, current_index, acc) do
     case parse_array(rest, handler, current_index + 1, acc, [{@array, 1}]) do
-      {:error, _, _} = error -> error
-      {index, rest, acc, _} -> parse_remaining_whitespace(rest, index, acc, handler)
+      {:error, _, _} = error ->
+        error
+
+      {index, <<>>, acc, []} ->
+        handler.end_of_document(index - 1, acc)
+
+      {index, the_rest, acc, []} ->
+        # raise "nah"
+        # index |> IO.inspect(limit: :infinity, label: "INDEX")
+        # the_rest |> IO.inspect(limit: :infinity, label: "THEREST")
+        # current_index |> IO.inspect(limit: :infinity, label: "CURR")
+
+        # Here's the thing the index we use is 0 based, but this binary-size is 1 based.
+        # That means we should be adding 1 to the number to get the correct rest. but that
+        # doesn't seem to be what's happening. That must mean we are returning the wrong
+        # indexes somewhere. We'll have to find out where, when.
+
+        # Also we need to watch out for when we reach the end of the string. Ideally we
+        # stop then immediately but I don't want to have to create a bunch of case statements
+        # everywhere.
+        # <<_::binary-size(index + 1), actual_rest::bits>> = rest
+        # actual_rest |> IO.inspect(limit: :infinity, label: "ARRRRR")
+        # if the_rest !== actual_rest, do: raise("ohNo")
+
+        # I think index is wrong in some cases? Is it off by one?
+
+        parse_remaining_whitespace(the_rest, index, acc, handler)
     end
   end
 
@@ -94,8 +130,15 @@ defmodule JxonSlim do
       case parse_number(number, index + 2) do
         {end_index, remaining} ->
           case handler.do_negative_number(index, end_index - 1, acc) do
-            {:error, _, _} = error -> error
-            acc -> parse_remaining_whitespace(remaining, end_index, acc, handler)
+            {:error, _, _} = error ->
+              error
+
+            acc ->
+              # index |> IO.inspect(limit: :infinity, label: "index")
+              # end_index |> IO.inspect(limit: :infinity, label: "end index")
+              # <<_rest::binary-size(end_index - 1), actual_rest::bits>> = number
+              # actual_rest |> IO.inspect(limit: :infinity, label: "AR")
+              parse_remaining_whitespace(remaining, end_index, acc, handler)
           end
 
         {:error, _, _} = error ->
@@ -181,7 +224,7 @@ defmodule JxonSlim do
     {:error, :invalid_json_character, current_index}
   end
 
-  defp parse_object(rest, handler, current_index, acc, depth_stack) do
+  defp parse_object(<<rest::binary>>, handler, current_index, acc, depth_stack) do
     case handler.start_of_object(current_index - 1, acc) do
       {:error, _, _} = error ->
         error
@@ -196,7 +239,7 @@ defmodule JxonSlim do
     close_object(rest, handler, index, acc, depth_stack)
   end
 
-  defp key_value(rest, handler, current_index, acc, depth_stack) do
+  defp key_value(<<rest::binary>>, handler, current_index, acc, depth_stack) do
     case parse_object_key(rest, handler, current_index, acc) do
       {:error, _, _} = error ->
         error
@@ -240,16 +283,16 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_object_key("", _handler, index, _acc) do
+  defp parse_object_key(<<>>, _handler, index, _acc) do
     {:error, :invalid_object_key, index - 1}
   end
 
-  defp parse_object_key(_rest, _handler, index, _acc) do
+  defp parse_object_key(<<_rest::binary>>, _handler, index, _acc) do
     {:error, :invalid_object_key, index}
   end
 
   # We don't check for open array because the caller already did that.
-  defp parse_array(array_contents, handler, current_index, acc, depth_stack) do
+  defp parse_array(<<array_contents::binary>>, handler, current_index, acc, depth_stack) do
     # current index points to head of array_contents, we want the char before ie the '['
     case handler.start_of_array(current_index - 1, acc) do
       {:error, _, _} = error ->
@@ -261,11 +304,18 @@ defmodule JxonSlim do
             {:error, :leading_comma, end_index}
 
           {end_index, rest} ->
+            end_index |> IO.inspect(limit: :infinity, label: "ENd indexxx")
+
             case parse_values(rest, handler, end_index, acc, depth_stack) do
               # Here we want to be like "if we see a comma then recur".
-              {:error, _, _} = error -> error
-              {end_index, <<>>, acc, depth_stack} -> {end_index - 1, <<>>, acc, depth_stack}
-              {end_index, rest, acc, depth_stack} -> {end_index, rest, acc, depth_stack}
+              {:error, _, _} = error ->
+                error
+
+              {end_index, <<>>, acc, depth_stack} ->
+                {end_index - 1, <<>>, acc, depth_stack}
+
+              {end_index, rest, acc, depth_stack} ->
+                {end_index, rest, acc, depth_stack} |> IO.inspect(limit: :infinity, label: "")
             end
         end
     end
@@ -285,7 +335,13 @@ defmodule JxonSlim do
 
         acc ->
           if new_array_depth == 0 do
+            index |> IO.inspect(limit: :infinity, label: "Indexx end of arrat")
+            rest |> IO.inspect(limit: :infinity, label: "rest")
+
+            # Here we only add 1 if we aren't at the end of the array?
+
             {index + 1, rest, acc, rest_depth}
+            |> IO.inspect(limit: :infinity, label: "kkkkkkk")
           else
             {index + 1, rest, acc, [{@array, new_array_depth} | rest_depth]}
           end
@@ -293,8 +349,9 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_values(rest, handler, index, acc, depth_stack) do
-    case parse_value(rest, handler, index, acc, depth_stack) do
+  defp parse_values(<<rest::binary>>, handler, index, acc, depth_stack) do
+    case parse_value(rest, handler, index, acc, depth_stack)
+         |> IO.inspect(limit: :infinity, label: "PVVVv") do
       {:error, _, _} = error ->
         error
 
@@ -302,7 +359,8 @@ defmodule JxonSlim do
         {end_index, rest, acc, []}
 
       {end_index, rest, acc, depth_stack} ->
-        case parse_comma(rest, end_index, depth_stack) do
+        case parse_comma(rest, end_index, depth_stack)
+             |> IO.inspect(limit: :infinity, label: "commaAfterTrue") do
           {:error, _, _} = error -> error
           {end_index, rest} -> parse_values(rest, handler, end_index, acc, depth_stack)
         end
@@ -398,13 +456,19 @@ defmodule JxonSlim do
     end
   end
 
+  # Do we not need to handle 0 then exp?
+
   for digit <- @all_digits do
     defp parse_value(<<unquote(digit), _::bits>> = json, handler, current_index, acc, depth_stack) do
-      case parse_number(json, current_index) do
+      # raise "hi"
+
+      case parse_number(json, current_index) |> IO.inspect(limit: :infinity, label: "NUMB") do
         {:error, _, _} = error ->
           error
 
         {end_index, rest} ->
+          end_index |> IO.inspect(limit: :infinity, label: "parse values number end index")
+          rest |> IO.inspect(limit: :infinity, label: "Parse number rest")
           # we subtract 1 because we are only sure we have finished parsing the number once
           # we have stepped past it. So end_index points to one char after the end of the number.
           case handler.do_positive_number(current_index, end_index - 1, acc) do
@@ -416,11 +480,17 @@ defmodule JxonSlim do
   end
 
   defp parse_value(<<@t, rest::bits>>, handler, start_index, acc, depth_stack) do
-    case parse_true(rest, start_index + 1) do
+    rest |> IO.inspect(limit: :infinity, label: "b4rest")
+    start_index |> IO.inspect(limit: :infinity, label: "index in parse value true case")
+
+    case parse_true(rest, start_index + 1) |> IO.inspect(limit: :infinity, label: "PT") do
       {:error, _, _} = error ->
         error
 
       {end_index, rest} ->
+        end_index |> IO.inspect(limit: :infinity, label: "end")
+        rest |> IO.inspect(limit: :infinity, label: "rest")
+
         case handler.do_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
@@ -474,11 +544,11 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_value(_rest, _handler, index, _acc, _) do
+  defp parse_value(<<_rest::binary>>, _handler, index, _acc, _) do
     {:error, :invalid_json_character, index}
   end
 
-  defp close_object(rest, handler, index, acc, [{@object, object_depth} | rest_depth]) do
+  defp close_object(<<rest::binary>>, handler, index, acc, [{@object, object_depth} | rest_depth]) do
     new_object_depth = object_depth - 1
 
     if new_object_depth < 0 do
@@ -498,11 +568,11 @@ defmodule JxonSlim do
     end
   end
 
-  defp close_object(_, _, index, _, [{@array, _} | _]) do
+  defp close_object(<<_::binary>>, _, index, _, [{@array, _} | _]) do
     {:error, :unclosed_array, index - 1}
   end
 
-  defp parse_colon(rest, index) do
+  defp parse_colon(<<rest::binary>>, index) do
     case skip_whitespace(rest, index) do
       {colon_index, <<@colon, rest::bits>>} ->
         case skip_whitespace(rest, colon_index + 1) do
@@ -519,7 +589,7 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_comma(rest, index, depth_stack) do
+  defp parse_comma(<<rest::binary>>, index, depth_stack) do
     case skip_whitespace(rest, index) do
       {comma_index, <<@comma, rest::bits>>} ->
         case skip_whitespace(rest, comma_index + 1) do
@@ -562,16 +632,39 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_true("rue" <> rest, current_index), do: {current_index + 3, rest}
-  defp parse_true("ru" <> _, current_index), do: {:error, :invalid_boolean, current_index + 2}
-  defp parse_true("r" <> _, current_index), do: {:error, :invalid_boolean, current_index + 1}
-  defp parse_true(_, current_index), do: {:error, :invalid_boolean, current_index}
+  defp parse_true(<<"rue"::binary, rest::bits>>, current_index) do
+    {current_index + 3, rest}
+  end
 
-  defp parse_false("alse" <> rest, current_index), do: {current_index + 4, rest}
-  defp parse_false("als" <> _, current_index), do: {:error, :invalid_boolean, current_index + 3}
-  defp parse_false("al" <> _, current_index), do: {:error, :invalid_boolean, current_index + 2}
-  defp parse_false("a" <> _, current_index), do: {:error, :invalid_boolean, current_index + 1}
-  defp parse_false(_, current_index), do: {:error, :invalid_boolean, current_index}
+  defp parse_true(<<"ru"::binary, _rest::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 2}
+  end
+
+  defp parse_true(<<"r"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 1}
+  end
+
+  defp parse_true(<<_::binary>>, current_index) do
+    {:error, :invalid_boolean, current_index}
+  end
+
+  defp parse_false(<<"alse"::binary, rest::bits>>, current_index) do
+    {current_index + 4, rest}
+  end
+
+  defp parse_false(<<"als"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 3}
+  end
+
+  defp parse_false(<<"al"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 2}
+  end
+
+  defp parse_false(<<"a"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 1}
+  end
+
+  defp parse_false(<<_::binary>>, current_index), do: {:error, :invalid_boolean, current_index}
 
   # We already know there is an 'n' because that's how we decided to call this fn. In the
   # happy case we want to point to the last 'l' + 1 so that we maintain the invariant that
@@ -580,10 +673,19 @@ defmodule JxonSlim do
 
   # In the error case we want to point to the first erroneous char, which is one after the
   # match.
-  defp parse_null("ull" <> rest, current_index), do: {current_index + 3, rest}
-  defp parse_null("ul" <> _, current_index), do: {:error, :invalid_boolean, current_index + 2}
-  defp parse_null("u" <> _, current_index), do: {:error, :invalid_boolean, current_index + 1}
-  defp parse_null(_, current_index), do: {:error, :invalid_boolean, current_index}
+  defp parse_null(<<"ull"::binary, rest::bits>>, current_index) do
+    {current_index + 3, rest}
+  end
+
+  defp parse_null(<<"ul"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 2}
+  end
+
+  defp parse_null(<<"u"::binary, _::bits>>, current_index) do
+    {:error, :invalid_boolean, current_index + 1}
+  end
+
+  defp parse_null(<<_::binary>>, current_index), do: {:error, :invalid_boolean, current_index}
 
   for space <- @whitespace do
     defp skip_whitespace(<<unquote(space), rest::binary>>, index) do
@@ -591,7 +693,7 @@ defmodule JxonSlim do
     end
   end
 
-  defp skip_whitespace(remaining, index), do: {index, remaining}
+  defp skip_whitespace(<<remaining::binary>>, index), do: {index, remaining}
 
   defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
     parse_string(rest, end_character_index + 2)
@@ -612,7 +714,7 @@ defmodule JxonSlim do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
-  def parse_number(json, index) do
+  def parse_number(<<json::binary>>, index) do
     case parse_digits(json, index) do
       {index, <<@decimal_point, byte::binary-size(1), rest::bits>>} when byte in @all_digits ->
         parse_fractional_digits(rest, index + 2)
@@ -634,9 +736,9 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_digits(rest, index), do: {index, rest}
+  defp parse_digits(<<rest::binary>>, index), do: {index, rest}
 
-  defp parse_fractional_digits(rest, index) do
+  defp parse_fractional_digits(<<rest::binary>>, index) do
     case parse_digits(rest, index) do
       {index, <<e, rest::bits>>} when e in 'eE' -> parse_exponent(rest, index + 1)
       {index, rest} -> {index, rest}
@@ -655,7 +757,7 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_exponent(_rest, index) do
+  defp parse_exponent(<<_rest::binary>>, index) do
     {:error, :invalid_exponent, index}
   end
 
@@ -675,7 +777,7 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_remaining_whitespace(_rest, index, _, _) do
+  defp parse_remaining_whitespace(<<_rest::binary>>, index, _, _) do
     {:error, :invalid_json_character, index}
   end
 end

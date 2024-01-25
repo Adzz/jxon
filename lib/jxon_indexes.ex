@@ -212,7 +212,7 @@ defmodule JxonIndexes do
     {:error, :invalid_json_character, current_index}
   end
 
-  defp parse_object(rest, original, handler, current_index, acc, depth_stack) do
+  defp parse_object(<<rest::binary>>, original, handler, current_index, acc, depth_stack) do
     case handler.start_of_object(original, current_index - 1, acc) do
       {:error, _, _} = error ->
         error
@@ -281,7 +281,7 @@ defmodule JxonIndexes do
   end
 
   # We don't check for open array because the caller already did that.
-  defp parse_array(array_contents, original, handler, current_index, acc, depth_stack) do
+  defp parse_array(<<array_contents::binary>>, original, handler, current_index, acc, depth_stack) do
     # current index points to head of array_contents, we want the char before ie the '['
     case handler.start_of_array(original, current_index - 1, acc) do
       {:error, _, _} = error ->
