@@ -87,6 +87,8 @@ defmodule JxonSlimTest do
       # good, but might be hard for large strings?
       acc = []
 
+      :binary.part(json_string, 14, 10) |> IO.inspect(limit: :infinity, label: ">?>")
+
       assert JxonSlim.parse(json_string, SlimHandler, 0, acc) ==
                {:error, :multiple_bare_values, 25}
 
@@ -1190,6 +1192,7 @@ defmodule JxonSlimTest do
     test "object with an object" do
       json_string = "{ \"a\": [{ \"b\": 2}], \"c\": 3 }"
       acc = []
+      :binary.part(json_string, 16, 4) |> IO.inspect(limit: :infinity, label: "llll")
 
       assert JxonSlim.parse(json_string, SlimHandler, 0, acc) == [
                {:object_start, 0, 1},

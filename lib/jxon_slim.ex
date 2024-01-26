@@ -70,28 +70,28 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@open_object, rest::bits>>, handler, current_index, acc) do
+  def parse(<<@open_object, rest::bits>> = j, handler, current_index, acc) do
     case parse_object(rest, handler, current_index + 1, acc, [{@object, 1}]) do
       {:error, _, _} = error ->
         error
 
-      {index, acc, []} ->
-        <<_rest::binary-size(index - 1), actual_rest::bits>> = rest
-        parse_remaining_whitespace(actual_rest, index, acc, handler)
+      {end_index, acc, []} ->
+        <<_rest::binary-size(end_index - current_index), actual_rest::bits>> = j
+        parse_remaining_whitespace(actual_rest, end_index, acc, handler)
     end
   end
 
-  def parse(<<@open_array, rest::bits>>, handler, current_index, acc) do
+  def parse(<<@open_array, rest::bits>> = j, handler, current_index, acc) do
     case parse_array(rest, handler, current_index + 1, acc, [{@array, 1}]) do
       {:error, _, _} = error ->
         error
 
-      {index, acc, []} ->
-        <<_skip::binary-size(index), the_rest::bits>> = rest
+      {end_index, acc, []} ->
+        <<_skip::binary-size(end_index - current_index), the_rest::bits>> = j
 
         case the_rest do
-          "" -> handler.end_of_document(index - 1, acc)
-          _ -> parse_remaining_whitespace(the_rest, index, acc, handler)
+          "" -> handler.end_of_document(end_index - 1, acc)
+          _ -> parse_remaining_whitespace(the_rest, end_index, acc, handler)
         end
     end
   end
@@ -103,21 +103,21 @@ defmodule JxonSlim do
   end
 
   for digit <- @all_digits do
-    def parse(<<@minus, @zero, unquote(digit), _rest::bits>>, _, index, _) do
-      {:error, :leading_zero, index + 1}
+    def parse(<<@minus, @zero, unquote(digit), _rest::bits>>, _, current_index, _) do
+      {:error, :leading_zero, current_index + 1}
     end
   end
 
   for digit <- @all_digits do
-    def parse(<<@minus, unquote(digit), number::bits>>, handler, index, acc) do
-      case parse_number(number, index + 2) do
+    def parse(<<@minus, unquote(digit), number::bits>> = j, handler, current_index, acc) do
+      case parse_number(number, current_index + 2) do
         {:error, _, _} = error ->
           error
 
         end_index ->
-          <<_skip::binary-size(end_index), rest::bits>> = number
+          <<_skip::binary-size(end_index - current_index), rest::bits>> = j
 
-          case handler.do_negative_number(index, end_index - 1, acc) do
+          case handler.do_negative_number(current_index, end_index - 1, acc) do
             {:error, _, _} = error -> error
             acc -> parse_remaining_whitespace(rest, end_index, acc, handler)
           end
@@ -126,13 +126,13 @@ defmodule JxonSlim do
   end
 
   for digit <- @all_digits do
-    def parse(<<unquote(digit), rest::bits>>, handler, current_index, acc) do
+    def parse(<<unquote(digit), rest::bits>> = j, handler, current_index, acc) do
       case parse_number(rest, current_index + 1) do
         {:error, _, _} = error ->
           error
 
         end_index ->
-          <<_skip::binary-size(end_index), rest::bits>> = rest
+          <<_skip::binary-size(end_index - current_index), rest::bits>> = j
 
           case handler.do_positive_number(current_index, end_index - 1, acc) do
             {:error, _, _} = error -> error
@@ -142,19 +142,13 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@quotation_mark, rest::bits>>, handler, current_index, acc) do
+  def parse(<<@quotation_mark, rest::bits>> = j, handler, current_index, acc) do
     case parse_string(rest, current_index + 1) do
       {:error, _, _} = error ->
         error
 
-      {end_index, ""} ->
-        case handler.do_string(current_index, end_index - 1, acc) do
-          {:error, _, _} = error -> error
-          acc -> handler.end_of_document(end_index - 1, acc)
-        end
-
       end_index ->
-        <<_skip::binary-size(end_index), rest::bits>> = rest
+        <<_skip::binary-size(end_index - current_index), rest::bits>> = j
 
         case handler.do_string(current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
@@ -163,13 +157,13 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@t, rest::bits>>, handler, start_index, acc) do
+  def parse(<<@t, rest::bits>> = j, handler, start_index, acc) do
     case parse_true(rest, start_index + 1) do
       {:error, _, _} = error ->
         error
 
       end_index ->
-        <<_skip::binary-size(end_index), rest::bits>> = rest
+        <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
         case handler.do_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
@@ -178,13 +172,13 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@f, rest::bits>>, handler, start_index, acc) do
+  def parse(<<@f, rest::bits>> = j, handler, start_index, acc) do
     case parse_false(rest, start_index + 1) do
       {:error, _, _} = error ->
         error
 
       end_index ->
-        <<_skip::binary-size(end_index), rest::bits>> = rest
+        <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
         case handler.do_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
@@ -193,13 +187,13 @@ defmodule JxonSlim do
     end
   end
 
-  def parse(<<@n, rest::bits>>, handler, start_index, acc) do
+  def parse(<<@n, rest::bits>> = j, handler, start_index, acc) do
     case parse_null(rest, start_index + 1) do
       {:error, _, _} = error ->
         error
 
       end_index ->
-        <<_skip::binary-size(end_index), rest::bits>> = rest
+        <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
         case handler.do_null(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
@@ -218,9 +212,9 @@ defmodule JxonSlim do
         error
 
       acc ->
-        index = skip_whitespace(rest, current_index)
-        <<_skip::binary-size(index), rest::bits>> = rest
-        key_value(rest, handler, index, acc, depth_stack)
+        end_index = skip_whitespace(rest, current_index)
+        <<_skip::binary-size(end_index - current_index), rest::bits>> = rest
+        key_value(rest, handler, end_index, acc, depth_stack)
     end
   end
 
@@ -233,48 +227,56 @@ defmodule JxonSlim do
       {:error, _, _} = error ->
         error
 
-      {end_index, acc} ->
-        <<_skip::binary-size(end_index), after_obj_key::bits>> = rest
-        index = skip_whitespace(after_obj_key, end_index)
+      {key_end_index, acc} ->
+        <<_skip::binary-size(key_end_index - current_index), after_obj_key::bits>> = rest
+        whitespace_end_index = skip_whitespace(after_obj_key, key_end_index)
+        <<_skip::binary-size(whitespace_end_index - key_end_index), rest::bits>> = after_obj_key
 
-        case parse_value(rest, handler, index, acc, depth_stack) do
+        case parse_value(rest, handler, whitespace_end_index, acc, depth_stack) do
           {:error, _, _} = error ->
             error
 
-          {end_index, acc, []} ->
-            {end_index, acc, []}
+          {comma_start, acc, depth_stack} ->
+            <<_skip::binary-size(comma_start - whitespace_end_index), rest::bits>> = rest
 
-          {end_index, acc, depth_stack} ->
-            case parse_comma(rest, end_index, depth_stack) do
+            case parse_comma(rest, comma_start, depth_stack) do
               {:error, _, _} = error ->
                 error
 
               end_index ->
-                <<_skip::binary-size(end_index), rest::bits>> = rest
+                end_index |> IO.inspect(limit: :infinity, label: "EDNINDEX")
+                <<_skip::binary-size(end_index - comma_start), rest::bits>> = rest
+                rest |> IO.inspect(limit: :infinity, label: "RESTTTTT")
 
                 case rest do
                   <<@close_array, _::bits>> -> {:error, :unclosed_object, end_index - 1}
-                  _ -> key_value(rest, handler, index, acc, depth_stack)
+                  _ -> key_value(rest, handler, end_index, acc, depth_stack)
                 end
             end
         end
     end
   end
 
-  defp parse_object_key(<<@quotation_mark, rest::bits>>, handler, index, acc) do
-    case parse_string(rest, index + 1) do
+  defp parse_object_key(<<@quotation_mark, rest::bits>> = j, handler, current_index, acc) do
+    case parse_string(rest, current_index + 1) do
       {:error, _, _} = error ->
         error
 
       end_index ->
-        <<_skip::binary-size(end_index), after_string::bits>> = rest
+        <<_skip::binary-size(end_index - current_index), after_string::bits>> = j
 
-        case handler.object_key(index, end_index - 1, acc) do
+        case handler.object_key(current_index, end_index - 1, acc) do
           {:error, _, _} = error ->
             error
 
           acc ->
-            case parse_colon(after_string, end_index) do
+            end_index |> IO.inspect(limit: :infinity, label: "colone end inddex")
+
+            after_string
+            |> IO.inspect(limit: :infinity, label: "colonAFter string")
+
+            case parse_colon(after_string, end_index)
+                 |> IO.inspect(limit: :infinity, label: "colon") do
               {:error, _, _} = error -> error
               end_index -> {end_index, acc}
             end
@@ -290,7 +292,6 @@ defmodule JxonSlim do
     {:error, :invalid_object_key, index}
   end
 
-  # We don't check for open array because the caller already did that.
   defp parse_array(<<array_contents::binary>>, handler, current_index, acc, depth_stack) do
     # current index points to head of array_contents, we want the char before ie the '['
     case handler.start_of_array(current_index - 1, acc) do
@@ -299,7 +300,7 @@ defmodule JxonSlim do
 
       acc ->
         end_index = skip_whitespace(array_contents, current_index)
-        <<_::binary-size(end_index), after_whitespace::bits>> = array_contents
+        <<_::binary-size(end_index - current_index), after_whitespace::bits>> = array_contents
 
         case after_whitespace do
           <<@comma, _::bits>> ->
@@ -343,21 +344,23 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_values(<<rest::binary>>, handler, index, acc, depth_stack) do
-    case parse_value(rest, handler, index, acc, depth_stack) do
+  defp parse_values(<<rest::binary>>, handler, current_index, acc, depth_stack) do
+    case parse_value(rest, handler, current_index, acc, depth_stack) do
       {:error, _, _} = error ->
         error
 
       {end_index, acc, []} ->
         {end_index, acc, []}
 
-      {end_index, acc, depth_stack} ->
-        case parse_comma(rest, end_index, depth_stack) do
+      {value_end_index, acc, depth_stack} ->
+        <<_skip::binary-size(value_end_index - current_index), rest::bits>> = rest
+
+        case parse_comma(rest, value_end_index, depth_stack) do
           {:error, _, _} = error ->
             error
 
           end_index ->
-            <<_skip::binary-size(end_index), rest::bits>> = rest
+            <<_skip::binary-size(end_index - value_end_index), rest::bits>> = rest
             parse_values(rest, handler, end_index, acc, depth_stack)
         end
     end
@@ -558,15 +561,14 @@ defmodule JxonSlim do
     {:error, :unclosed_array, index - 1}
   end
 
-  defp parse_colon(<<rest::binary>>, index) do
-    whitespace_index = skip_whitespace(rest, index)
-    <<_::binary-size(whitespace_index), after_whitespace::bits>> = rest
+  defp parse_colon(<<rest::binary>>, current_index) do
+    whitespace_index = skip_whitespace(rest, current_index)
+    <<_::binary-size(whitespace_index - current_index), after_whitespace::bits>> = rest
 
     case after_whitespace do
-      <<@colon, rest::bits>> ->
-        colon_index = whitespace_index
-        end_index = skip_whitespace(rest, colon_index + 1)
-        <<_::binary-size(end_index), after_whitespace::bits>> = rest
+      <<@colon, rest::bits>> = j ->
+        end_index = skip_whitespace(rest, whitespace_index + 1)
+        <<_::binary-size(end_index - whitespace_index), after_whitespace::bits>> = j
 
         case after_whitespace do
           <<@close_array, _rest::bits>> -> {:error, :unopened_array, end_index}
@@ -582,56 +584,56 @@ defmodule JxonSlim do
     end
   end
 
-  defp parse_comma(<<rest::binary>>, index, depth_stack) do
-    end_index = skip_whitespace(rest, index)
-    # All centers on what this does. Are we off by one? Does index mean it points to
-    # the first char of whitespace?
-    <<_::binary-size(end_index), after_whitespace::bits>> = rest
+  defp parse_comma(<<rest::binary>>, current_index, depth_stack) do
+    rest |> IO.inspect(limit: :infinity, label: "REST")
+    whitespace_index = skip_whitespace(rest, current_index)
+    whitespace_index |> IO.inspect(limit: :infinity, label: "parse_commaparse_comma wi")
+    current_index |> IO.inspect(limit: :infinity, label: "parse_commaparse_comma cuurrr")
+    <<_::binary-size(whitespace_index - current_index), after_whitespace::bits>> = rest
 
-    case after_whitespace do
-      <<@comma, rest::bits>> ->
-        comma_index = index
-        new_index = skip_whitespace(rest, comma_index + 1)
-        # This might fail if the string is empty?
-        <<_::binary-size(new_index), after_whitespace::bits>> = rest
+    case after_whitespace |> IO.inspect(limit: :infinity, label: "after") do
+      <<@comma, rest::bits>> = j ->
+        end_index = skip_whitespace(rest, whitespace_index + 1)
+        <<_::binary-size(end_index - whitespace_index), after_whitespace::bits>> = j
 
         case after_whitespace do
           <<@comma, _rest::bits>> ->
-            {:error, :double_comma, new_index + 1}
+            {:error, :double_comma, end_index + 1}
 
           <<@close_array, _rest::bits>> ->
-            {:error, :trailing_comma, comma_index}
+            {:error, :trailing_comma, whitespace_index}
 
           <<@close_object, _rest::bits>> ->
-            {:error, :trailing_comma, comma_index}
+            {:error, :trailing_comma, whitespace_index}
 
           "" ->
             case hd(depth_stack) do
-              {@object, _count} -> {:error, :unclosed_object, new_index - 1}
-              {@array, _count} -> {:error, :unclosed_array, new_index - 1}
+              {@object, _count} -> {:error, :unclosed_object, end_index - 1}
+              {@array, _count} -> {:error, :unclosed_array, end_index - 1}
             end
 
           _ ->
-            new_index
+            end_index
         end
 
       "" ->
         case hd(depth_stack) do
-          {@object, _count} -> {:error, :unclosed_object, index - 1}
-          {@array, _count} -> {:error, :unclosed_array, index - 1}
+          {@object, _count} -> {:error, :unclosed_object, current_index - 1}
+          {@array, _count} -> {:error, :unclosed_array, current_index - 1}
         end
 
       <<@close_array, _rest::bits>> ->
-        index + 1
+        current_index + 1
 
       <<@close_object, _rest::bits>> ->
-        index + 1
+        current_index + 1
 
       <<byte::binary-size(1), _rest::bits>> when byte in @value_indicators ->
-        {:error, :multiple_bare_values, index + 1}
+        byte |> IO.inspect(limit: :infinity, label: "bite")
+        {:error, :multiple_bare_values, current_index + 1}
 
       _ ->
-        {:error, :invalid_json_character, index + 1}
+        {:error, :invalid_json_character, current_index + 1}
     end
   end
 
@@ -717,9 +719,9 @@ defmodule JxonSlim do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
-  def parse_number(<<json::binary>>, index) do
-    end_index = parse_digits(json, index)
-    <<_::binary-size(end_index), after_digits::bits>> = json
+  def parse_number(<<json::binary>>, current_index) do
+    end_index = parse_digits(json, current_index)
+    <<_::binary-size(end_index - current_index), after_digits::bits>> = json
 
     case after_digits do
       <<@decimal_point, byte::binary-size(1), rest::bits>> when byte in @all_digits ->
@@ -732,7 +734,7 @@ defmodule JxonSlim do
         parse_exponent(rest, end_index + 1)
 
       _ ->
-        index
+        end_index
     end
   end
 
@@ -744,13 +746,13 @@ defmodule JxonSlim do
 
   defp parse_digits(<<_rest::binary>>, index), do: index
 
-  defp parse_fractional_digits(<<rest::binary>>, index) do
-    index = parse_digits(rest, index)
-    <<_::binary-size(index), the_rest>> = rest
+  defp parse_fractional_digits(<<rest::binary>>, current_index) do
+    end_index = parse_digits(rest, current_index)
+    <<_::binary-size(end_index - current_index), the_rest>> = rest
 
     case the_rest do
-      <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, index + 1)
-      _ -> index
+      <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, end_index + 1)
+      _ -> end_index
     end
   end
 
