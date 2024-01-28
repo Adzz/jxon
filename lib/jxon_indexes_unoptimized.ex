@@ -1,4 +1,4 @@
-defmodule JxonIndexes do
+defmodule JxonIndexesUnoptimized do
   @moduledoc """
   This version of the parser supplies start and end indexes to each of the callbacks and
   the original binary. That allows callers to implement callbacks that access the parts of
@@ -52,11 +52,11 @@ defmodule JxonIndexes do
 
   Where the bench looks like:
 
-  "JXON cast" => fn json -> JxonIndexes.parse(json, CastingHandler, 0, []) end,
+  "JXON cast" => fn json -> JxonIndexesUnoptimized.parse(json, CastingHandler, 0, []) end,
   "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end,
   "JXON nothing" => fn json -> JxonSlim.parse(json, DoNothingHandler, 0, []) end
 
-  and json is the GovTrack file in bench/data.
+  and JSON is the GovTrack file in bench/data.
   """
   # " "
   @space <<0x20>>

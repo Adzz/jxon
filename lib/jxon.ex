@@ -1,7 +1,7 @@
 defmodule Jxon do
   @moduledoc """
 
-  DEPRECATED - likely replaced by JxonIndexes soon.
+  DEPRECATED - likely replaced by JxonIndexesUnoptimized soon.
 
   TODO: Lexer that just hands start / end indexes to the callbacks. That way the user can
   decide whether to copy them or not I guess. But it means they would also be completely

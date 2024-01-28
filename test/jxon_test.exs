@@ -557,17 +557,17 @@
 #     test "unicode escapes don't actually escape, they just return as is" do
 #       acc = []
 #       json_string = ~s("\\u2603")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2603"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "\\u2603"
 #       json_string = ~s("\\u2028\\u2029")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\u2028\\u2029"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "\\u2028\\u2029"
 #       json_string = ~s("\\uD834\\uDD1E")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
 #       json_string = ~s("\\uD834\\uDD1E")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "\\uD834\\uDD1E"
 #       json_string = ~s("\\uD799\\uD799")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "\\uD799\\uD799"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "\\uD799\\uD799"
 #       json_string = ~s("✔︎")
-#       assert JxonIndexes.parse(json_string, TestHandler, 0, acc) == "✔︎"
+#       assert JxonIndexesUnoptimized.parse(json_string, TestHandler, 0, acc) == "✔︎"
 #     end
 #   end
 

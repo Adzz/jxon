@@ -1,8 +1,5 @@
 defmodule DoNothingHandler do
   # Feel like this would use less mems.
-  @true_ 0
-  @false_ 1
-  @null_ 2
   @string 3
   @positive_number 4
   @negative_number 5
@@ -12,15 +9,15 @@ defmodule DoNothingHandler do
   @array_start 9
   @array_end 10
 
-  def do_true(start_index, end_index, acc) do
+  def do_true(_start_index, _end_index, acc) do
     [true | acc]
   end
 
-  def do_false(start_index, end_index, acc) do
+  def do_false(_start_index, _end_index, acc) do
     [false | acc]
   end
 
-  def do_null(start_index, end_index, acc) do
+  def do_null(_start_index, _end_index, acc) do
     [nil | acc]
   end
 
