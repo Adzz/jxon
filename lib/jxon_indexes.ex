@@ -4,12 +4,59 @@ defmodule JxonIndexes do
   the original binary. That allows callers to implement callbacks that access the parts of
   the binary they care about and choose to copy or reference the original binary.
 
-  This is a currently untested sketch. It's probably off by one in a few places.
+  This version does not pay any attention to the match context re-use optimisation. As such
+  it actually uses 10x MORE memory than ones that do:
 
-  What would be real nice here is a debugger. But failing that an indication of the call path
-  a specific test case goes through, ie a stack trace I guess. Being able to know precisely
-  which paths are being taken for a given bit of data is game changing and that's all I'm
-  trying to replicate with the print debugging.
+        Operating System: macOS
+        CPU Information: Apple M1 Max
+        Number of Available Cores: 10
+        Available memory: 64 GB
+        Elixir 1.14.3
+        Erlang 24.1.7
+        JIT enabled: false
+
+        Benchmark suite executing with the following configuration:
+        warmup: 5 s
+        time: 30 s
+        memory time: 1 s
+        reduction time: 0 ns
+        parallel: 1
+        inputs: GovTrack
+        Estimated total run time: 1 min 48 s
+
+        Benchmarking JXON cast with input GovTrack ...
+        Benchmarking JXON nothing with input GovTrack ...
+        Benchmarking JXON slimer with input GovTrack ...
+        Calculating statistics...
+        Formatting results...
+
+        ##### With input GovTrack #####
+        Name                   ips        average  deviation         median         99th %
+        JXON nothing         17.54       57.03 ms     ±4.10%       56.60 ms       65.10 ms
+        JXON slimer          17.37       57.59 ms     ±4.54%       57.01 ms       65.84 ms
+        JXON cast             5.10      196.14 ms     ±3.59%      194.83 ms      230.11 ms
+
+        Comparison:
+        JXON nothing         17.54
+        JXON slimer          17.37 - 1.01x slower +0.56 ms
+        JXON cast             5.10 - 3.44x slower +139.11 ms
+
+        Memory usage statistics:
+
+        Name            Memory usage
+        JXON nothing        13.49 MB
+        JXON slimer         13.49 MB - 1.00x memory usage +0 MB
+        JXON cast          138.25 MB - 10.25x memory usage +124.76 MB
+
+        **All measurements for memory usage were the same**
+
+  Where the bench looks like:
+
+  "JXON cast" => fn json -> JxonIndexes.parse(json, CastingHandler, 0, []) end,
+  "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end,
+  "JXON nothing" => fn json -> JxonSlim.parse(json, DoNothingHandler, 0, []) end
+
+  and json is the GovTrack file in bench/data.
   """
   # " "
   @space <<0x20>>
