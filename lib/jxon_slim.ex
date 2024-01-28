@@ -88,11 +88,7 @@ defmodule JxonSlim do
 
       {end_index, acc, []} ->
         <<_skip::binary-size(end_index - current_index), the_rest::bits>> = j
-
-        case the_rest do
-          "" -> handler.end_of_document(end_index - 1, acc)
-          _ -> parse_remaining_whitespace(the_rest, end_index, acc, handler)
-        end
+        parse_remaining_whitespace(the_rest, end_index, acc, handler)
     end
   end
 
@@ -244,13 +240,24 @@ defmodule JxonSlim do
                 error
 
               end_index ->
-                end_index |> IO.inspect(limit: :infinity, label: "EDNINDEX")
                 <<_skip::binary-size(end_index - comma_start), rest::bits>> = rest
-                rest |> IO.inspect(limit: :infinity, label: "RESTTTTT")
+                after_whitespace_index = skip_whitespace(rest, end_index)
 
-                case rest do
-                  <<@close_array, _::bits>> -> {:error, :unclosed_object, end_index - 1}
-                  _ -> key_value(rest, handler, end_index, acc, depth_stack)
+                <<_::binary-size(after_whitespace_index - end_index), after_whitespace::bits>> =
+                  rest
+
+                case after_whitespace do
+                  # Parse comma returns the closing element that it finds. That can be any of:
+                  # close object, comma, or a close array. If we are parsing a key/value then the
+                  # allowed values are comma, close object, or an actual value. That means if
+                  # we parse comma and see a closing array well something fucked up.
+
+                  # If we see a close object though we are going to recur and key/value deals with it.
+                  <<@close_array, _::bits>> ->
+                    {:error, :unclosed_object, end_index - 1}
+
+                  _ ->
+                    key_value(after_whitespace, handler, after_whitespace_index, acc, depth_stack)
                 end
             end
         end
@@ -270,13 +277,7 @@ defmodule JxonSlim do
             error
 
           acc ->
-            end_index |> IO.inspect(limit: :infinity, label: "colone end inddex")
-
-            after_string
-            |> IO.inspect(limit: :infinity, label: "colonAFter string")
-
-            case parse_colon(after_string, end_index)
-                 |> IO.inspect(limit: :infinity, label: "colon") do
+            case parse_colon(after_string, end_index) do
               {:error, _, _} = error -> error
               end_index -> {end_index, acc}
             end
@@ -309,14 +310,8 @@ defmodule JxonSlim do
           after_whitespace ->
             case parse_values(after_whitespace, handler, end_index, acc, depth_stack) do
               # Here we want to be like "if we see a comma then recur".
-              {:error, _, _} = error ->
-                error
-
-              # {end_index, acc, depth_stack} ->
-              #   {end_index - 1, acc, depth_stack}
-
-              {end_index, acc, depth_stack} ->
-                {end_index, acc, depth_stack}
+              {:error, _, _} = error -> error
+              {end_index, acc, depth_stack} -> {end_index, acc, depth_stack}
             end
         end
     end
@@ -349,19 +344,28 @@ defmodule JxonSlim do
       {:error, _, _} = error ->
         error
 
-      {end_index, acc, []} ->
-        {end_index, acc, []}
-
       {value_end_index, acc, depth_stack} ->
         <<_skip::binary-size(value_end_index - current_index), rest::bits>> = rest
 
+        # The expected result from parse_values here is EITHER a comma or a close array.
+        # There could be whitespace after the comma.
         case parse_comma(rest, value_end_index, depth_stack) do
           {:error, _, _} = error ->
             error
 
           end_index ->
             <<_skip::binary-size(end_index - value_end_index), rest::bits>> = rest
-            parse_values(rest, handler, end_index, acc, depth_stack)
+            after_whitespace_index = skip_whitespace(rest, end_index)
+            <<_::binary-size(after_whitespace_index - end_index), after_whitespace::bits>> = rest
+
+            case after_whitespace do
+              # The situation here is you have closed the object before an
+              <<@close_object, _rest::bits>> ->
+                raise "hell"
+
+              _ ->
+                parse_values(after_whitespace, handler, after_whitespace_index, acc, depth_stack)
+            end
         end
     end
   end
@@ -522,7 +526,6 @@ defmodule JxonSlim do
       # I don't think we can actually hit this case because we check for valid keys
       # immediately after the object open.
       {@object, _count} -> {:error, :unclosed_object, end_index - 1}
-      # This we can hit.
       {@array, _count} -> {:error, :unclosed_array, end_index - 1}
     end
   end
@@ -585,20 +588,17 @@ defmodule JxonSlim do
   end
 
   defp parse_comma(<<rest::binary>>, current_index, depth_stack) do
-    rest |> IO.inspect(limit: :infinity, label: "REST")
     whitespace_index = skip_whitespace(rest, current_index)
-    whitespace_index |> IO.inspect(limit: :infinity, label: "parse_commaparse_comma wi")
-    current_index |> IO.inspect(limit: :infinity, label: "parse_commaparse_comma cuurrr")
     <<_::binary-size(whitespace_index - current_index), after_whitespace::bits>> = rest
 
-    case after_whitespace |> IO.inspect(limit: :infinity, label: "after") do
+    case after_whitespace do
       <<@comma, rest::bits>> = j ->
         end_index = skip_whitespace(rest, whitespace_index + 1)
         <<_::binary-size(end_index - whitespace_index), after_whitespace::bits>> = j
 
         case after_whitespace do
           <<@comma, _rest::bits>> ->
-            {:error, :double_comma, end_index + 1}
+            {:error, :double_comma, end_index}
 
           <<@close_array, _rest::bits>> ->
             {:error, :trailing_comma, whitespace_index}
@@ -623,13 +623,12 @@ defmodule JxonSlim do
         end
 
       <<@close_array, _rest::bits>> ->
-        current_index + 1
+        current_index
 
       <<@close_object, _rest::bits>> ->
-        current_index + 1
+        current_index
 
       <<byte::binary-size(1), _rest::bits>> when byte in @value_indicators ->
-        byte |> IO.inspect(limit: :infinity, label: "bite")
         {:error, :multiple_bare_values, current_index + 1}
 
       _ ->
@@ -748,7 +747,7 @@ defmodule JxonSlim do
 
   defp parse_fractional_digits(<<rest::binary>>, current_index) do
     end_index = parse_digits(rest, current_index)
-    <<_::binary-size(end_index - current_index), the_rest>> = rest
+    <<_::binary-size(end_index - current_index), the_rest::bits>> = rest
 
     case the_rest do
       <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, end_index + 1)
