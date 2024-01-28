@@ -1,13 +1,13 @@
 decode_jobs = %{
-  # "Jason" => fn json -> Jason.decode!(json) end,
-  # "Poison" => fn json -> Poison.decode!(json) end,
+  "Jason" => fn json -> Jason.decode!(json) end,
+  "Poison" => fn json -> Poison.decode!(json) end,
   # "JSX" => fn json -> JSX.decode!(json, [:strict]) end,
   # "Tiny" => fn json -> Tiny.decode!(json) end,
   # "jsone" => fn json -> :jsone.decode(json) end,
   # "jiffy" => fn json -> :jiffy.decode(json, [:return_maps, :use_nil]) end,
   # "JSON" => fn json -> JSON.decode!(json) end
   # "JXON index" => fn json -> JxonIndexesUnoptimized.parse(json, TestHandler, 0, []) end,
-  "JXON cast" => fn json -> JxonIndexesUnoptimized.parse(json, CastingHandler, 0, []) end,
+  # "JXON cast" => fn json -> JxonIndexesUnoptimized.parse(json, CastingHandler, 0, []) end,
   # "JXON slim" => fn json -> JxonSlim.parse(json, SlimHandler, 0, []) end,
   "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end,
   "JXON nothing" => fn json -> JxonSlim.parse(json, DoNothingHandler, 0, []) end
@@ -18,7 +18,8 @@ decode_inputs = [
   # "GitHub",
   # "Giphy",
   # GovTrack is 3.9mb file.
-  "GovTrack"
+  # "GovTrack",
+  "canada"
   # "Blockchain",
   # "Pokedex",
   # "JSON Generator",

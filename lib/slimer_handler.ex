@@ -1,20 +1,4 @@
 defmodule SlimerHandler do
-  # Feel like this would use less mems.
-  # @true_ 0
-  # @false_ 1
-  # @null_ 2
-  # @string 3
-  # @positive_number 4
-  # @negative_number 5
-  # @object_start 6
-  # @object_key 7
-  # @object_end 8
-  # @array_start 9
-  # @array_end 10
-
-  # @true_ :t
-  # @false_ :f
-  # @null_ :n
   @string :string
   @positive_number :positive_number
   @negative_number :negative_number
@@ -23,6 +7,15 @@ defmodule SlimerHandler do
   @object_end :object_end
   @array_start :array_start
   @array_end :array_end
+  # TODO change the above to this:
+  # @string 0
+  # @positive_number 1
+  # @negative_number 2
+  # @object_start 3
+  # @object_key 4
+  # @object_end 5
+  # @array_start 6
+  # @array_end 7
 
   @moduledoc """
   This is an experiment to see if we gain anything from having the stuff be one flat list
@@ -32,9 +25,9 @@ defmodule SlimerHandler do
 
       [
         {:array_start, 0, 1},
-        {:t, 1, 4},
-        {:f, 7, 5},
-        {:n, 14, 4},
+        true,
+        false,
+        nil,
         {:positive_number, 20, 1},
         {:positive_number, 22, 1},
         {:positive_number, 25, 1},
@@ -45,6 +38,10 @@ defmodule SlimerHandler do
 
   We now have to figure out a good way to ingest that and turn it into a DOM of some kind.
   Can we use schemas to filter down the data we keep? Do we have to verify it's correct.
+
+  You might think you could store keys and values together but if you have nested objects
+  or arrays then that means you tree becomes nested. Not sure if that would result in worse
+  perf or not..
   """
 
   # How do we factor in the schemas then. We need to be able to traverse the schema in lock
@@ -74,35 +71,31 @@ defmodule SlimerHandler do
   # The final boss is can we cast it into a struct, especially if we consider aggregates?
 
   def do_true(start_index, end_index, acc) when start_index <= end_index do
-    # len = end_index - start_index + 1
     [true | acc]
   end
 
   def do_false(start_index, end_index, acc) when start_index <= end_index do
-    # len = end_index - start_index + 1
     [false | acc]
   end
 
   def do_null(start_index, end_index, acc) when start_index <= end_index do
-    # len = end_index - start_index + 1
     [nil | acc]
   end
 
   def do_string(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - 1 - (start_index + 1) + 1
-    # value = :binary.part(start_index + 1, len)
     [{@string, start_index + 1, len} | acc]
   end
 
+  # Positive and negative numbers is not the distinction we care about. It's integers
+  # and floats, most likely. We should emit a fn for float and one for integer. Ergh..
   def do_negative_number(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
-    # {value, ""} = Integer.parse(:binary.part(start_index, len))
     [{@negative_number, start_index, len} | acc]
   end
 
   def do_positive_number(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
-    # {value, ""} = Integer.parse(:binary.part(start_index, len))
     [{@positive_number, start_index, len} | acc]
   end
 
@@ -112,7 +105,6 @@ defmodule SlimerHandler do
 
   def object_key(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - 1 - (start_index + 1) + 1
-    # value = :binary.part(start_index + 1, len)
     [{@object_key, start_index + 1, len} | acc]
   end
 

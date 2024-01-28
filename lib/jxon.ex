@@ -1,12 +1,5 @@
 defmodule Jxon do
   @moduledoc """
-
-  DEPRECATED - likely replaced by JxonIndexesUnoptimized soon.
-
-  TODO: Lexer that just hands start / end indexes to the callbacks. That way the user can
-  decide whether to copy them or not I guess. But it means they would also be completely
-  in charge of string escaping. The we could write functions for that.
-
   An event based JSON parser.
 
   https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
@@ -62,373 +55,172 @@ defmodule Jxon do
       DIGIT = %x30-39            ; 0-9
             ; DIGIT equivalent to DIGIT rule in [RFC5234]
   """
-  # " "
-  @space <<0x20>>
-  # \t
-  @horizontal_tab <<0x09>>
-  # \n
-  @new_line <<0x0A>>
-  # \r
-  @carriage_return <<0x0D>>
-  # \f
-  @form_feed <<0x0C>>
-  @whitespace [@space, @horizontal_tab, @new_line, @carriage_return, @form_feed]
-  @quotation_mark <<0x22>>
-  @backslash <<0x5C>>
-  @forwardslash <<0x2F>>
-  @comma <<0x2C>>
-  @colon <<0x3A>>
-  @open_array <<0x5B>>
-  @close_array <<0x5D>>
-  @open_object <<0x7B>>
-  @close_object <<0x7D>>
-  @plus <<0x2B>>
-  @minus <<0x2D>>
-  @zero <<0x30>>
-  @digits [
-    <<0x31>>,
-    <<0x32>>,
-    <<0x33>>,
-    <<0x34>>,
-    <<0x35>>,
-    <<0x36>>,
-    <<0x37>>,
-    <<0x38>>,
-    <<0x39>>
-  ]
-  @decimal_point <<0x2E>>
-  # Escape next chars
-  @u <<0x75>>
-  @b <<0x62>>
-  @f <<0x66>>
-  @n <<0x6E>>
-  @r <<0x72>>
-  @t <<0x74>>
 
-  @doc """
-  """
-  def parse(<<>>, handler, acc), do: handler.end_of_document(acc)
-  def parse(@space <> rest, handler, acc), do: parse(rest, handler, acc)
-  def parse(@horizontal_tab <> rest, handler, acc), do: parse(rest, handler, acc)
-  def parse(@new_line <> rest, handler, acc), do: parse(rest, handler, acc)
-  def parse(@carriage_return <> rest, handler, acc), do: parse(rest, handler, acc)
+  def parse(json) do
+    instructions =
+      JxonSlim.parse(json, SlimerHandler, 0, [])
+      |> IO.inspect(limit: :infinity, label: "")
 
-  # would it be better to do this? Faster? slower? clearer? no different?
-  # I'm hoping the above re-uses the match context or whatever.
-  # def parse(string) do
-  #   parse(skip_whitespace(string))
-  # end
-
-  # Leading zeros are prohibited!!
-  # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
-  def parse(<<@zero, rest::bits>>, _handler, _acc) do
-    # Would it be good for handlers to be able do this optionally? Like as an extension
-    # allow leading 0s in integers or something. Seems like that would be good... To do
-    # that we could call the handler and then case on the return value to decide wither we
-    # continue or not. In reality we could do that anyway everywhere we call the handler and
-    # have a haltable / continueable json parser. We will circle back to this.
-    {:error, :leading_zero, @zero <> rest}
+    execute_instructions(instructions, json)
   end
 
-  def parse(<<@minus, @zero, rest::bits>>, _handler, _acc) do
-    {:error, :leading_zero, @zero <> rest}
+  # First we see what the first instruction is. If it is a value, we just return that and
+  # we are done. If it is an object or an array then we have to accumulate!
+  # BUT the instruction stream (for now) is in reverse. I think that will be fine because
+  # we are going to accumulate by prepending into the list (for example). Also we can be sure
+  # that if we are here we are seeing valid JSON.
+  defp execute_instructions([:array_end | rest], json) do
+    accumulate_list(rest, json, [[]])
   end
 
-  def parse(<<@minus, number::bits>> = original, handler, acc) do
-    case parse_integer(number, 0) do
-      {end_index, remaining} ->
-        if skip_whitespace(remaining) == "" do
-          number = :binary.part(number, 0, end_index)
-          handler.do_negative_number(number, acc)
-        else
-          {:error, :multiple_bare_values, original}
-        end
+  defp execute_instructions([:object_end | rest], json) do
+    accumulate_object(rest, json, [:object_start])
+  end
 
-      {:error, :invalid_number, _problematic_char_index} ->
-        {:error, :invalid_number, original}
+  # Perhaps here is where we would do the string escaping if we wanted it....
+  defp execute_instructions([{:string, start, len}], json) do
+    :binary.part(json, start, len)
+  end
+
+  defp execute_instructions([{:positive_number, start, len}], json) do
+    :binary.part(json, start, len)
+  end
+
+  defp execute_instructions([{:negative_number, start, len}], json) do
+    :binary.part(json, start, len)
+  end
+
+  # If it is false, true or nil it will already be that value in Elixir, You could choose
+  # to do something else like a 1 or 0 or whatever but we don't.
+  defp execute_instructions([value], _json) do
+    value
+  end
+
+  # # Does Acc always need to be a stack? I guess so?
+  defp accumulate_list([{instruction, start, len} | rest], json, stack)
+       when instruction in [:negative_number, :positive_number] do
+    numb = :binary.part(json, start, len)
+    decimal = Decimal.new(numb)
+    accumulate_list(rest, json, [decimal | stack])
+  end
+
+  defp accumulate_list([{:string, start, len} | rest], json, stack) do
+    string = :binary.part(json, start, len)
+    accumulate_list(rest, json, [string | stack])
+  end
+
+  defp accumulate_list([val | rest], json, [head | stack_rest])
+       when is_list(head) and val in [true, false, nil] do
+    accumulate_list(rest, json, [[val | head] | stack_rest])
+  end
+
+  # Object end is starting a new one. We should never see object_start (then end of an obj)
+  # because accumulate_object will handle that.
+  defp accumulate_list([:object_end | rest], json, [head | stack_rest]) when is_list(head) do
+    accumulate_object(rest, json, [:object_start])
+    # accumulate_list(rest, json, [[object | head] | stack_rest])
+  end
+
+  # Ending an array is starting a new one.
+  defp accumulate_list([:array_end | rest], json, stack) do
+    accumulate_list(rest, json, [[] | stack])
+  end
+
+  # This is the end of the array (because instructions are in reverse order).
+  defp accumulate_list([:array_start | rest], json, [head, prev | rest_stack]) do
+    accumulate_list(rest, json, [[head | prev] | rest_stack])
+  end
+
+  defp accumulate_list([:array_start | rest], json, [head]) do
+    head
+  end
+
+  # EXAMPLE
+  # [
+  #   {:object_end, 27, 1},
+  #   {:positive_number, 25, 1},
+  #   {:object_key, 21, 1},
+  #   {:array_end, 17, 1},
+  #   {:object_end, 16, 1},
+  #   {:positive_number, 15, 1}, 2
+  #   {:object_key, 11, 1}, "B"
+  #   {:object_start, 8, 1},
+  #   {:array_start, 7, 1},
+  #   {:object_key, 3, 1},
+  #   {:object_start, 0, 1}
+  # ]
+
+  # Keys are always followed by values. But we are working with a reversed object stream
+  # so we see the values first.
+  defp accumulate_object([], json, stack) do
+    stack
+  end
+
+  defp accumulate_object([{:positive_number, start, len} | rest], json, stack) do
+    numb = :binary.part(json, start, len)
+    decimal = Decimal.new(numb)
+    accumulate_object(rest, json, [{nil, decimal} | stack])
+  end
+
+  defp accumulate_object([{:negative_number, start, len} | rest], json, stack) do
+    numb = :binary.part(json, start, len)
+    decimal = Decimal.new(numb)
+    accumulate_object(rest, json, [{nil, decimal} | stack])
+  end
+
+  defp accumulate_object([{:string, start, len} | rest], json, stack) do
+    string = :binary.part(json, start, len)
+    accumulate_object(rest, json, [{nil, string} | stack])
+  end
+
+  defp accumulate_object([val | rest], json, stack) when val in [true, nil, false] do
+    accumulate_object(rest, json, [{nil, val} | stack])
+  end
+
+  # This is the END of the object.
+  defp accumulate_object([:object_start | rest], json, [{key, value}]) do
+    %{key => value}
+  end
+
+  defp accumulate_object([:object_start | rest], json, stack) do
+    # now we want to consume rest until we see the empty map that we insert when we start
+    # an obj because we are done with it.
+    acc = collapse_object(stack, %{})
+    accumulate_object(rest, json, acc)
+  end
+
+  defp accumulate_object([{:object_key, start, len} | rest], json, stack) do
+    key = :binary.part(json, start, len)
+
+    case stack do
+      [{nil, value} | rest_of_acc] -> accumulate_object(rest, json, [{key, value} | rest_of_acc])
+      [%{} = map | rest_of_acc] -> accumulate_object(rest, json, [{key, map} | rest_of_acc])
     end
   end
 
-  def parse(<<byte::binary-size(1), rest::bits>> = original, handler, acc) when byte in @digits do
-    case parse_integer(rest, 1) do
-      {end_index, remaining} ->
-        if skip_whitespace(remaining) == "" do
-          number = :binary.part(original, 0, end_index)
-          handler.do_positive_number(number, acc)
-        else
-          {:error, :multiple_bare_values, original}
-        end
-
-      {:error, :invalid_number, _problematic_char_index} ->
-        # We could call the handler and have it decide what to do here. Alternatively if
-        # we provide the problematic_char_index then the caller could snip that char out
-        # and attempt a re-parse and stuff. So we should at least provide that I think.
-        {:error, :invalid_number, original}
-    end
+  # This is the START of an object
+  defp accumulate_object([:object_end | rest], json, stack) do
+    accumulate_object(rest, json, [[:object_start] | stack])
   end
 
-  # I think we need to detect an escaped string too? And allow that?
-  # Escaped means we act as if the thing escaped is a literal. But what about this case:
-  # json_string = "\"[1, 2, 3, 4]\"" The escaped strings are escaped for the Elixir string
-  # but we want them to be actual quote marks to JSON ...
-
-  def parse(<<@quotation_mark, rest::bits>> = original, handler, acc) do
-    # Here's the thing, we can't just parse until the next quotation mark because there
-    # could be escaped speech marks along the way... To do that we just need to inc/dec
-    # the number of escaped " we see. I guess we could parse until we see a ", see if the
-    # previous value was a \ and if it is continue. If not, halt as we found the end of
-    # our string...?
-
-    # The rules are we can parse a bare string, in which case there should be nothing but
-    # white space after it. If we are later in the context of an array or object, that type
-    # dictates what can come next... I think. Basically `parse` atm is more like parse_value
-
-    case find_string_end(rest, 1) do
-      {:error, :unescaped_backslash, rest, acc} ->
-        {:error, :unescaped_backslash, rest, IO.iodata_to_binary(acc)}
-
-      {:error, :unterminated_string, parsed} ->
-        {:error, :unterminated_string, parsed, original}
-
-      {end_index, remaining} ->
-        if skip_whitespace(remaining) == "" do
-          # I guess we could pass a reference or not here? Or even just pass the indexes
-          # to the handler and have them binary_part or not... that might actually be better
-          # then you don't need to pass in options. Dam may have to change to that later.
-          # The only thing is whether that works with streaming data or partial documents.
-          # And you have to pass the original binary around I guess or have it accessible
-          # to different things.
-
-          # I sort of wonder if we could parallelize large json documents by chunking it up
-          # and just start parsing, then as you group together collapse the possibilities
-          # until you are sure on the outcome. Wow. Is that possible? Probably not actually
-          # how to make it fast as that would just be SIMD or whatever.
-          raw_string = :binary.part(original, 0, end_index)
-          handler.do_string(raw_string, acc)
-        else
-          {:error, :multiple_bare_values, original}
-        end
-    end
+  # Array end is actually the start of an array
+  defp accumulate_object([:array_end | rest], json, stack) do
+    accumulate_list(rest, json, [[]])
   end
 
-  def parse("true", handler, acc), do: handler.do_true(acc)
-  def parse("false", handler, acc), do: handler.do_value(acc)
-  def parse("null", handler, acc), do: handler.do_null(acc)
-
-  def parse("null" <> rest, handler, acc) do
-    if skip_whitespace(rest) == "" do
-      handler.do_null(acc)
-    else
-      {:error, :multiple_bare_values, rest}
-    end
+  # This is the end of an array...
+  defp accumulate_object([:array_start | rest], json, stack) do
+    accumulate_object(rest, json, stack)
   end
 
-  def parse("true" <> rest, handler, acc) do
-    if skip_whitespace(rest) == "" do
-      handler.do_true(acc)
-    else
-      {:error, :multiple_bare_values, rest}
-    end
+  # This first arg is not the instructions, it's the stack really.
+  defp collapse_object([:object_start | rest], acc) do
+    [acc | rest]
   end
 
-  def parse("false" <> rest, handler, acc) do
-    if skip_whitespace(rest) == "" do
-      handler.do_false(acc)
-    else
-      {:error, :multiple_bare_values, rest}
-    end
+  defp collapse_object([{key, value} | rest], acc) do
+    collapse_object(rest, Map.put(acc, key, value))
   end
-
-  def parse(<<byte::binary-size(1), _rest::bits>>, _handler, _acc) do
-    byte |> IO.inspect(limit: :infinity, label: "BYTE1")
-    raise "Error"
-  end
-
-  defp find_string_end(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
-    find_string_end(rest, end_character_index + 2)
-  end
-
-  defp find_string_end(<<@quotation_mark, rest::bits>>, end_character_index) do
-    {end_character_index + 1, rest}
-  end
-
-  defp find_string_end(<<byte::binary-size(1), rest::bits>>, end_character_index) do
-    find_string_end(rest, end_character_index + 1)
-  end
-
-  defp find_string_end(<<>>, end_character_index) do
-    {:error, :unterminated_string, end_character_index}
-  end
-
-  defp parse_string(<<@backslash, @backslash, rest::bits>>, acc) do
-    parse_string(rest, [acc | @backslash])
-  end
-
-  defp parse_string(<<@backslash, @forwardslash, rest::bits>>, acc) do
-    parse_string(rest, [acc | @forwardslash])
-  end
-
-  defp parse_string(<<@backslash, @b, rest::bits>>, acc) do
-    parse_string(rest, [acc | '\b'])
-  end
-
-  defp parse_string(<<@backslash, @f, rest::bits>>, acc) do
-    parse_string(rest, [acc | '\f'])
-  end
-
-  defp parse_string(<<@backslash, @n, rest::bits>>, acc) do
-    parse_string(rest, [acc | '\n'])
-  end
-
-  defp parse_string(<<@backslash, @r, rest::bits>>, acc) do
-    parse_string(rest, [acc | '\r'])
-  end
-
-  defp parse_string(<<@backslash, @t, rest::bits>>, acc) do
-    parse_string(rest, [acc | '\t'])
-  end
-
-  defp parse_string(<<@backslash, @u, rest::bits>>, acc) do
-    parse_string(rest, [acc | [@backslash, @u]])
-  end
-
-  defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, acc) do
-    parse_string(rest, [acc | @quotation_mark])
-  end
-
-  defp parse_string(<<@backslash, _rest::bits>> = string, acc) do
-    {:error, :unescaped_backslash, string, acc}
-  end
-
-  defp parse_string(<<@quotation_mark, rest::bits>>, acc) do
-    # We exclude the speech marks that bracket the string because they become the speech
-    # marks in the Elixir string.
-    {IO.iodata_to_binary(acc), rest}
-  end
-
-  defp parse_string(<<byte::binary-size(1), rest::bits>>, acc) do
-    parse_string(rest, [acc | byte])
-  end
-
-  defp parse_string(<<>>, acc) do
-    {:error, :unterminated_string, IO.iodata_to_binary(acc)}
-  end
-
-  # This will return the end index of the number as far as we can see it, erroring if we
-  # see something we shouldn't along the way (like whitespace or a " or [ etc).
-
-  # it goes [ minus ] int [frac] [exp]
-  # which means we can see frac without exp and exp without frac.
-  defp parse_integer(<<byte::binary-size(1), rest::bits>>, number_end_index)
-       when byte in [@zero | @digits] do
-    # To reduce the mems we keep a count of how far along we are and later we binary_part
-    # the section we care about...
-    parse_integer(rest, number_end_index + 1)
-  end
-
-  defp parse_integer(<<?e, @plus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_integer(<<?E, @plus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_integer(<<?E, @minus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_integer(<<?e, @minus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_integer(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
-    parse_exponent(rest, number_end_index + 1)
-  end
-
-  defp parse_integer(<<@decimal_point, rest::bits>>, number_end_index) do
-    parse_fractional_digits(rest, number_end_index + 1)
-  end
-
-  defp parse_integer(<<>> = rest, number_end_index) do
-    {number_end_index, rest}
-  end
-
-  defp parse_integer(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in [@comma, @quotation_mark | @whitespace] do
-    {number_end_index, rest}
-  end
-
-  defp parse_integer(_rest, number_end_index) do
-    {:error, :invalid_number, number_end_index + 1}
-  end
-
-  # This is like parse_number but does not allow for '.'
-  defp parse_fractional_digits(<<>> = rest, number_end_index) do
-    {number_end_index, rest}
-  end
-
-  defp parse_fractional_digits(<<byte::binary-size(1), rest::bits>>, number_end_index)
-       when byte in [@zero | @digits] do
-    parse_fractional_digits(rest, number_end_index + 1)
-  end
-
-  defp parse_fractional_digits(<<?e, @plus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_fractional_digits(<<?E, @plus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_fractional_digits(<<?E, @minus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_fractional_digits(<<?e, @minus, rest::bits>>, number_end_index) do
-    parse_exponent(rest, number_end_index + 2)
-  end
-
-  defp parse_fractional_digits(<<byte, rest::bits>>, number_end_index) when byte in 'eE' do
-    parse_exponent(rest, number_end_index + 1)
-  end
-
-  defp parse_fractional_digits(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in [@comma, @quotation_mark | @whitespace] do
-    {number_end_index, rest}
-  end
-
-  defp parse_fractional_digits(_rest, number_end_index) do
-    {:error, :invalid_number, number_end_index + 1}
-  end
-
-  defp parse_exponent(<<byte::binary-size(1), rest::bits>>, number_end_index)
-       when byte in [@zero | @digits] do
-    parse_exponent(rest, number_end_index + 1)
-  end
-
-  defp parse_exponent(<<byte::binary-size(1), _rest::bits>> = rest, number_end_index)
-       when byte in [@comma, @quotation_mark | @whitespace] do
-    {number_end_index, rest}
-  end
-
-  defp parse_exponent(<<>> = rest, number_end_index) do
-    {number_end_index, rest}
-  end
-
-  defp parse_exponent(_rest, number_end_index) do
-    {:error, :invalid_number, number_end_index + 1}
-  end
-
-  # Is this faster? Well this stops as soon as you find a non whitespace char, but doesn't
-  # actually parse the rest of the binary. That is going to be faster for certain kinds of
-  # data. This might also let us return better errors because we wont return an error for
-  # some nested data or whatever.
-  defp skip_whitespace(<<head::binary-size(1), rest::binary>>) when head in @whitespace do
-    skip_whitespace(rest)
-  end
-
-  defp skip_whitespace(remaining), do: remaining
 
   @doc """
   Splits a binary into everything up to the a terminating character, the terminating

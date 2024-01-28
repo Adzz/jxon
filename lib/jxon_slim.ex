@@ -1,4 +1,16 @@
 defmodule JxonSlim do
+  @moduledoc """
+  With this kind of lexer emitter thing there are two options. We could pass around the original
+  binary everywhere and have the callback module be handed it like we did originally. OR
+  we could do a pass over the "dom"/ast thing that we create from the handler. I'd sort of
+  like to benchmark both of them and see what's better. Another pass over it is of course
+  another pass... but if we can slim it down then it could be another pass over a much smaller
+  thing? Alternatively does passing the orginial binary around everywhere cause problems?
+
+  Also if we don't pass the binary around then the caller has to write a handler AND also
+  write a thing that interprets that so to speak - converting it into something they want.
+  Is that too much to ask? Is it good? Where/when do we string escape. Who fucking knows.
+  """
   # " "
   @space <<0x20>>
   # \t
@@ -55,10 +67,6 @@ defmodule JxonSlim do
   @array 0
 
   # OKAY So this is a good read. https://rhye.org/post/erlang-binary-matching-performance/
-
-  # I think the idea here is when we do things like "skip_whitespace" we don't actually
-  # want to return rest. We want to just return the count of how many to skip AND THEN
-  # back in the caller we want to bump along that many... I think?
 
   def parse(<<>>, handler, current_index, acc) do
     handler.end_of_document(current_index - 1, acc)

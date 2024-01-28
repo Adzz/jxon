@@ -24,7 +24,8 @@ defmodule Jxon.MixProject do
       # {:dep_from_hexpm, "~> 0.3.0"},
       {:benchee, ">=0.0.0", only: [:dev]},
       {:jason, ">=0.0.0", only: [:dev]},
-      {:poison, ">=0.0.0", only: [:dev]}
+      {:poison, ">=0.0.0", only: [:dev]},
+      {:decimal, ">=0.0.0", only: [:dev]}
     ]
   end
 end
