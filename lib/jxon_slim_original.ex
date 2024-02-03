@@ -27,6 +27,8 @@ defmodule JxonSlimOriginal do
   @plus <<0x2B>>
   @minus <<0x2D>>
   @zero <<0x30>>
+  @e <<0x65>>
+  @capital_e <<0x45>>
   @digits [
     <<0x31>>,
     <<0x32>>,
@@ -121,6 +123,14 @@ defmodule JxonSlimOriginal do
           end
       end
     end
+  end
+
+  def parse(<<@minus>>, _, _, current_index, _) do
+    {:error, :invalid_json_character, current_index}
+  end
+
+  def parse(<<@minus, _rest::bits>>, _, _, current_index, _) do
+    {:error, :invalid_json_character, current_index + 1}
   end
 
   for digit <- @all_digits do
@@ -491,7 +501,13 @@ defmodule JxonSlimOriginal do
     end
   end
 
-  # Do we not need to handle 0 then exp?
+  defp parse_value(<<@minus>>, _, _, current_index, _, _) do
+    {:error, :invalid_json_character, current_index}
+  end
+
+  defp parse_value(<<@minus, _rest::bits>>, _, _, current_index, _, _) do
+    {:error, :invalid_json_character, current_index + 1}
+  end
 
   for digit <- @all_digits do
     defp parse_value(
@@ -759,24 +775,51 @@ defmodule JxonSlimOriginal do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
-  def parse_number(<<json::binary>>, current_index) do
-    end_index = parse_digits(json, current_index)
-    <<_::binary-size(end_index - current_index), after_digits::bits>> = json
-
-    case after_digits do
-      <<@decimal_point, byte::binary-size(1), rest::bits>> when byte in @all_digits ->
-        parse_fractional_digits(rest, end_index + 2)
-
-      <<@decimal_point, _rest::bits>> ->
-        {:error, :invalid_decimal_number, end_index + 1}
-
-      <<byte, rest::bits>> when byte in 'eE' ->
-        parse_exponent(rest, end_index + 1)
-
-      _ ->
-        end_index
+  # We need to make the distinction between seeing a decimal before seeing any digits and
+  # not. But before calling here we have already checked for at least one digit, so we
+  # can be sure this is valid...
+  for digit <- @all_digits do
+    defp parse_number(<<@decimal_point, unquote(digit), rest::bits>>, current_index) do
+      parse_fractional_digits(rest, current_index + 2)
     end
   end
+
+  defp parse_number(<<@decimal_point, _rest::bits>>, current_index) do
+    {:error, :invalid_decimal_number, current_index + 1}
+  end
+
+  for exp <- [@e, @capital_e] do
+    defp parse_number(<<unquote(exp), rest::bits>>, current_index) do
+      parse_exponent(rest, current_index + 1)
+    end
+  end
+
+  for digit <- @all_digits do
+    defp parse_number(<<unquote(digit), rest::bits>>, current_index) do
+      parse_number(rest, current_index + 1)
+
+      # end_index = parse_digits(json, current_index)
+      # <<_::binary-size(end_index - current_index), after_digits::bits>> = json
+
+      # case after_digits do
+      #   <<@decimal_point, byte::binary-size(1), rest::bits>> when byte in @all_digits ->
+      #     # This is when we know we have a float if nothing goes wrong. So really we want to
+      #     # return that from the stuff.
+      #     parse_fractional_digits(rest, end_index + 2)
+
+      #   <<@decimal_point, _rest::bits>> ->
+      #     {:error, :invalid_decimal_number, end_index + 1}
+
+      #   <<byte, rest::bits>> when byte in 'eE' ->
+      #     parse_exponent(rest, end_index + 1)
+
+      #   _ ->
+      #     end_index
+      # end
+    end
+  end
+
+  defp parse_number(_, current_index), do: current_index
 
   for digit <- @all_digits do
     defp parse_digits(<<unquote(digit), rest::bits>>, index) do

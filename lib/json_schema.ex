@@ -141,7 +141,7 @@ defmodule JsonSchema do
     """
 
     j
-    |> JxonSlim.parse(SlimerHandler, 0, [])
+    |> JxonSlim.parse(j, OriginalSlimHandler, 0, [])
     |> case do
       # Would be good if the error pointed at the first previous non whitespace char probs?
       # We could actually just backtrack in that case as we are in an error case to perf is out the

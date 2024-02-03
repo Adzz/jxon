@@ -9,8 +9,10 @@ decode_jobs = %{
   # "JxonIndexesUnoptimized" => fn json -> JxonIndexesUnoptimized.parse(json, TestHandler, 0, []) end,
   # "JXON cast" => fn json -> JxonIndexesUnoptimized.parse(json, CastingHandler, 0, []) end,
   # "JXON slim" => fn json -> JxonSlim.parse(json, SlimHandler, 0, []) end,
-  "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end
-  # "JXON nothing" => fn json -> JxonSlim.parse(json, DoNothingHandler, 0, []) end
+  # "JXON slimer" => fn json -> JxonSlim.parse(json, SlimerHandler, 0, []) end,
+  "JxonSlimOriginal" => fn json ->
+    JxonSlimOriginal.parse(json, json, OriginalSlimHandler, 0, [])
+  end
   # "binary_to_term/1" => fn {_, etf} -> :erlang.binary_to_term(etf) end,
 }
 
@@ -18,7 +20,7 @@ decode_inputs = [
   # "GitHub",
   # "Giphy",
   # GovTrack is 3.9mb file.
-  # "GovTrack",
+  "GovTrack"
   # "canada"
   # "Blockchain",
   # "Pokedex",
@@ -26,7 +28,7 @@ decode_inputs = [
   # "JSON Generator (Pretty)",
   # "UTF-8 escaped",
   # "UTF-8 unescaped",
-  "Issue 90"
+  # "Issue 90"
 ]
 
 read_data = fn name ->

@@ -158,6 +158,35 @@ defmodule JxonSlimOriginalTest do
 
   describe "negative numbers" do
     @describetag :neg_ints
+
+    test "leading decimal point" do
+      json_string = ".1"
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :invalid_json_character, 0}
+    end
+
+    test "invalid decimal point" do
+      json_string = "-..1"
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :invalid_json_character, 1}
+    end
+
+    test "leading decimal point in array is an error" do
+      json_string = "[.1]"
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :invalid_json_character, 1}
+    end
+
+    test "invalid decimal point in array" do
+      json_string = "[-..1]"
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :invalid_json_character, 2}
+    end
+
     test "parsing negative numbers is good and fine" do
       json_string = "-1"
 
@@ -176,9 +205,9 @@ defmodule JxonSlimOriginalTest do
       json_string = "- 1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
-               {:error, :invalid_json_character, 0}
+               {:error, :invalid_json_character, 1}
 
-      assert :binary.part(json_string, 0, 1) == "-"
+      assert :binary.part(json_string, 1, 1) == " "
     end
 
     test "negative sign only is wrong" do
