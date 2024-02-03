@@ -7,6 +7,11 @@ defmodule OriginalSlimHandler do
   @object_end :object_end
   @array_start :array_start
   @array_end :array_end
+  # In truth soon it wont matter? We just want a number because you'll cast it to whatever
+  # per field anway. So like you should already know what kind of number you expect and
+  # can handle it accordingly I would think..
+  @integer :integer
+  @float :float
 
   # @string 0
   # @positive_number 1
@@ -35,6 +40,18 @@ defmodule OriginalSlimHandler do
     # This is to exclude the speech marks in the original JSON. We do no escaping as is.
     string = :binary.part(original, start_index + 1, len - 2)
     [{@string, string} | acc]
+  end
+
+  def do_integer(original, start_index, end_index, acc) when start_index <= end_index do
+    len = end_index - start_index + 1
+    numb = :binary.part(original, start_index, len)
+    [{@integer, numb} | acc]
+  end
+
+  def do_float(original, start_index, end_index, acc) when start_index <= end_index do
+    len = end_index - start_index + 1
+    numb = :binary.part(original, start_index, len)
+    [{@float, numb} | acc]
   end
 
   # Positive and negative numbers is not the distinction we care about. It's integers

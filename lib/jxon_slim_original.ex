@@ -110,17 +110,17 @@ defmodule JxonSlimOriginal do
 
   for digit <- @all_digits do
     def parse(<<@minus, unquote(digit), number::bits>> = j, original, handler, current_index, acc) do
-      case parse_number(number, current_index + 2) do
+      case parse_number(number, current_index + 2, current_index, original, handler, acc) do
         {:error, _, _} = error ->
           error
 
-        end_index ->
-          <<_skip::binary-size(end_index - current_index), rest::bits>> = j
-
-          case handler.do_negative_number(original, current_index, end_index - 1, acc) do
-            {:error, _, _} = error -> error
-            acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
-          end
+        {end_index, acc} ->
+          <<_skip::binary-size(end_index - current_index), after_numb::bits>> = j
+          parse_remaining_whitespace(after_numb, original, end_index, acc, handler)
+          # case handler.do_negative_number(original, current_index, end_index - 1, acc) do
+          # {:error, _, _} = error -> error
+          # acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
+          # end
       end
     end
   end
@@ -135,17 +135,17 @@ defmodule JxonSlimOriginal do
 
   for digit <- @all_digits do
     def parse(<<unquote(digit), rest::bits>> = j, original, handler, current_index, acc) do
-      case parse_number(rest, current_index + 1) do
+      case parse_number(rest, current_index + 1, current_index, original, handler, acc) do
         {:error, _, _} = error ->
           error
 
-        end_index ->
+        {end_index, acc} ->
           <<_skip::binary-size(end_index - current_index), rest::bits>> = j
-
-          case handler.do_positive_number(original, current_index, end_index - 1, acc) do
-            {:error, _, _} = error -> error
-            acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
-          end
+          parse_remaining_whitespace(rest, original, end_index, acc, handler)
+          # case handler.do_positive_number(original, current_index, end_index - 1, acc) do
+          #   {:error, _, _} = error -> error
+          #   acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
+          # end
       end
     end
   end
@@ -488,15 +488,16 @@ defmodule JxonSlimOriginal do
            acc,
            depth_stack
          ) do
-      case parse_number(number, current_index + 2) do
+      case parse_number(number, current_index + 2, current_index, original, handler, acc) do
         {:error, _, _} = error ->
           error
 
-        end_index ->
-          case handler.do_negative_number(original, current_index, end_index - 1, acc) do
-            {:error, _, _} = error -> error
-            acc -> {end_index, acc, depth_stack}
-          end
+        {end_index, acc} ->
+          {end_index, acc, depth_stack}
+          # case handler.do_negative_number(original, current_index, end_index - 1, acc) do
+          # {:error, _, _} = error -> error
+          # acc -> {end_index, acc, depth_stack}
+          # end
       end
     end
   end
@@ -518,17 +519,22 @@ defmodule JxonSlimOriginal do
            acc,
            depth_stack
          ) do
-      case parse_number(json, current_index) do
+      case parse_number(json, current_index, current_index, original, handler, acc) do
         {:error, _, _} = error ->
           error
 
-        end_index ->
+        {end_index, acc} ->
+          {end_index, acc, depth_stack}
+          # Here we really want to know if we got a float or not. I'd like to do that
+          # without having to pass handler and all that jazz to parse_number... But maybe
+          # we can't
+
           # we subtract 1 because we are only sure we have finished parsing the number once
           # we have stepped past it. So end_index points to one char after the end of the number.
-          case handler.do_positive_number(original, current_index, end_index - 1, acc) do
-            {:error, _, _} = error -> error
-            acc -> {end_index, acc, depth_stack}
-          end
+          # case handler.do_positive_number(original, current_index, end_index - 1, acc) do
+          # {:error, _, _} = error -> error
+          # acc -> {end_index, acc, depth_stack}
+          # end
       end
     end
   end
@@ -775,51 +781,121 @@ defmodule JxonSlimOriginal do
     {:error, :unterminated_string, end_character_index - 1}
   end
 
-  # We need to make the distinction between seeing a decimal before seeing any digits and
-  # not. But before calling here we have already checked for at least one digit, so we
-  # can be sure this is valid...
+  # We'd like to know when we are parsing a float.
   for digit <- @all_digits do
-    defp parse_number(<<@decimal_point, unquote(digit), rest::bits>>, current_index) do
-      parse_fractional_digits(rest, current_index + 2)
+    defp parse_number(
+           <<@decimal_point, unquote(digit), rest::bits>>,
+           current_index,
+           start_index,
+           original,
+           handler,
+           acc
+         ) do
+      parse_fractional_digits(rest, current_index + 2, start_index, original, handler, acc)
     end
   end
 
-  defp parse_number(<<@decimal_point, _rest::bits>>, current_index) do
+  defp parse_number(
+         <<@decimal_point, _rest::bits>>,
+         current_index,
+         start_index,
+         original,
+         handler,
+         acc
+       ) do
     {:error, :invalid_decimal_number, current_index + 1}
   end
 
   for exp <- [@e, @capital_e] do
-    defp parse_number(<<unquote(exp), rest::bits>>, current_index) do
-      parse_exponent(rest, current_index + 1)
+    defp parse_number(
+           <<unquote(exp), rest::bits>>,
+           current_index,
+           start_index,
+           original,
+           handler,
+           acc
+         ) do
+      case parse_exponent(rest, current_index + 1) do
+        {:error, _, _} = error ->
+          error
+
+        end_index ->
+          case handler.do_integer(original, start_index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> {end_index, acc}
+          end
+      end
     end
   end
 
   for digit <- @all_digits do
-    defp parse_number(<<unquote(digit), rest::bits>>, current_index) do
-      parse_number(rest, current_index + 1)
+    defp parse_number(
+           <<unquote(digit), rest::bits>>,
+           current_index,
+           start_index,
+           original,
+           handler,
+           acc
+         ) do
+      parse_number(rest, current_index + 1, start_index, original, handler, acc)
+    end
+  end
 
-      # end_index = parse_digits(json, current_index)
-      # <<_::binary-size(end_index - current_index), after_digits::bits>> = json
+  defp parse_number(_, end_index, start_index, original, handler, acc) do
+    case handler.do_integer(original, start_index, end_index - 1, acc) do
+      {:error, _, _} = error -> error
+      acc -> {end_index, acc}
+    end
+  end
 
-      # case after_digits do
-      #   <<@decimal_point, byte::binary-size(1), rest::bits>> when byte in @all_digits ->
-      #     # This is when we know we have a float if nothing goes wrong. So really we want to
-      #     # return that from the stuff.
-      #     parse_fractional_digits(rest, end_index + 2)
+  for digit <- @all_digits do
+    defp parse_fractional_digits(
+           <<unquote(digit), rest::bits>>,
+           current_index,
+           start_index,
+           original,
+           handler,
+           acc
+         ) do
+      parse_fractional_digits(rest, current_index + 1, start_index, original, handler, acc)
+      # end_index = parse_digits(rest, current_index)
+      # <<_::binary-size(end_index - current_index), the_rest::bits>> = rest
 
-      #   <<@decimal_point, _rest::bits>> ->
-      #     {:error, :invalid_decimal_number, end_index + 1}
-
-      #   <<byte, rest::bits>> when byte in 'eE' ->
-      #     parse_exponent(rest, end_index + 1)
-
-      #   _ ->
-      #     end_index
+      # case the_rest do
+      #   <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, end_index + 1)
+      #   _ -> end_index
       # end
     end
   end
 
-  defp parse_number(_, current_index), do: current_index
+  for exp <- [@e, @capital_e] do
+    defp parse_fractional_digits(
+           <<unquote(exp), rest::bits>>,
+           current_index,
+           start_index,
+           original,
+           handler,
+           acc
+         ) do
+      case parse_exponent(rest, current_index + 1) do
+        {:error, _, _} = error ->
+          error
+
+        end_index ->
+          case handler.do_float(original, start_index, end_index - 1, acc) do
+            {:error, _, _} = error -> error
+            acc -> {end_index, acc}
+          end
+      end
+    end
+  end
+
+  defp parse_fractional_digits(_, end_index, start_index, original, handler, acc) do
+    case handler.do_float(original, start_index, end_index - 1, acc) do
+      {:error, _, _} = error -> error
+      acc -> {end_index, acc}
+    end
+  end
 
   for digit <- @all_digits do
     defp parse_digits(<<unquote(digit), rest::bits>>, index) do
@@ -828,16 +904,6 @@ defmodule JxonSlimOriginal do
   end
 
   defp parse_digits(<<_rest::binary>>, index), do: index
-
-  defp parse_fractional_digits(<<rest::binary>>, current_index) do
-    end_index = parse_digits(rest, current_index)
-    <<_::binary-size(end_index - current_index), the_rest::bits>> = rest
-
-    case the_rest do
-      <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, end_index + 1)
-      _ -> end_index
-    end
-  end
 
   for sign <- [@plus, @minus], digit <- @all_digits do
     defp parse_exponent(<<unquote(sign), unquote(digit), rest::bits>>, index) do

@@ -107,6 +107,13 @@ defmodule JxonSlimOriginalTest do
       assert :binary.part(json_string, 30, 1) == "r"
     end
 
+    test "decimal followed by exp is an error" do
+      json_string = "1.e"
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :invalid_decimal_number, 2}
+    end
+
     test "invalid multiple bare values and nested errors" do
       json_string = "false tru"
       # What is a good error message here? Pointing to the part that went wrong is probably
@@ -191,13 +198,13 @@ defmodule JxonSlimOriginalTest do
       json_string = "-1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-1"
+               integer: "-1"
              ]
 
       json_string = "-10920394059687"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-10920394059687"
+               integer: "-10920394059687"
              ]
     end
 
@@ -232,7 +239,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "-1e40  "
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:negative_number, "-1e40"}
+               {:integer, "-1e40"}
              ]
     end
 
@@ -267,7 +274,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "1e40  "
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "1e40"
+               integer: "1e40"
              ]
     end
 
@@ -275,7 +282,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "-1E40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:negative_number, "-1E40"}
+               {:integer, "-1E40"}
              ]
     end
 
@@ -283,13 +290,13 @@ defmodule JxonSlimOriginalTest do
       json_string = "-11e+2"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-11e+2"
+               integer: "-11e+2"
              ]
 
       json_string = "-11E+2"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-11E+2"
+               integer: "-11E+2"
              ]
     end
 
@@ -320,7 +327,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "-1.5"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-1.5"
+               float: "-1.5"
              ]
     end
 
@@ -346,7 +353,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "-1.5   \n \t \r"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:negative_number, "-1.5"}
+               {:float, "-1.5"}
              ]
     end
 
@@ -391,7 +398,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "102030405060708099887654321"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "102030405060708099887654321"
+               integer: "102030405060708099887654321"
              ]
     end
 
@@ -399,7 +406,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "1"
+               integer: "1"
              ]
     end
 
@@ -407,7 +414,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "1.500"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "1.500"
+               float: "1.500"
              ]
     end
 
@@ -424,7 +431,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "0"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "0"}
+               {:integer, "0"}
              ]
     end
 
@@ -432,7 +439,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "0e1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "0e1"
+               integer: "0e1"
              ]
     end
 
@@ -440,7 +447,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "0e+1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "0e+1"}
+               {:integer, "0e+1"}
              ]
     end
 
@@ -448,7 +455,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "0e-1"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "0e-1"
+               integer: "0e-1"
              ]
     end
 
@@ -463,7 +470,7 @@ defmodule JxonSlimOriginalTest do
       json_string = "-0"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               negative_number: "-0"
+               integer: "-0"
              ]
     end
 
@@ -480,49 +487,52 @@ defmodule JxonSlimOriginalTest do
       json_string = "1.5e+40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               positive_number: "1.5e+40"
+               float: "1.5e+40"
              ]
 
       json_string = "1.5e-40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "1.5e-40"}
+               {:float, "1.5e-40"}
              ]
 
       json_string = "1.5E+40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "1.5E+40"}
+               {:float, "1.5E+40"}
              ]
 
       json_string = "1.5E-40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "1.5E-40"}
+               # Wait is this a float or an int. I guess a positive one would be an integer
+               # actually?
+               {:float, "1.5E-40"}
              ]
 
       json_string = "15e+40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "15e+40"}
+               {:integer, "15e+40"}
              ]
 
       json_string = "15e-40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "15e-40"}
+               # Is this actually a float. Maybe having :numbers and :exponents or something..
+               {:integer, "15e-40"}
              ]
 
       json_string = "15E+40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "15E+40"}
+               {:integer, "15E+40"}
              ]
 
       json_string = "15E-40"
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
-               {:positive_number, "15E-40"}
+               {:integer, "15E-40"}
              ]
 
       json_string = "15ee+40"
@@ -745,7 +755,7 @@ defmodule JxonSlimOriginalTest do
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :array_start,
-               {:positive_number, "1"},
+               {:integer, "1"},
                :array_end
              ]
     end
@@ -796,11 +806,11 @@ defmodule JxonSlimOriginalTest do
                {:string, "b"},
                :array_end,
                :array_start,
-               {:positive_number, "1"},
+               {:integer, "1"},
                nil,
-               {:positive_number, "2.50"},
-               {:positive_number, "112.2"},
-               {:positive_number, "8"},
+               {:float, "2.50"},
+               {:float, "112.2"},
+               {:integer, "8"},
                :array_end,
                :array_end,
                :array_end
@@ -947,9 +957,9 @@ defmodule JxonSlimOriginalTest do
                :array_start,
                :array_end,
                :array_start,
-               {:positive_number, "1"},
+               {:integer, "1"},
                :array_start,
-               {:positive_number, "3"},
+               {:integer, "3"},
                :array_end,
                :array_end,
                :array_end
@@ -1024,7 +1034,7 @@ defmodule JxonSlimOriginalTest do
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :array_start,
-               {:positive_number, "0"},
+               {:integer, "0"},
                :array_end
              ]
     end
@@ -1034,7 +1044,7 @@ defmodule JxonSlimOriginalTest do
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :array_start,
-               {:negative_number, "-0"},
+               {:integer, "-0"},
                :array_end
              ]
     end
@@ -1044,7 +1054,7 @@ defmodule JxonSlimOriginalTest do
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :array_start,
-               {:negative_number, "-0e+1"},
+               {:integer, "-0e+1"},
                :array_end
              ]
     end
@@ -1063,7 +1073,7 @@ defmodule JxonSlimOriginalTest do
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :array_start,
-               {:positive_number, "0e+1"},
+               {:integer, "0e+1"},
                :array_end
              ]
     end
@@ -1217,7 +1227,7 @@ defmodule JxonSlimOriginalTest do
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :object_start,
                {:object_key, "a"},
-               {:positive_number, "1"},
+               {:integer, "1"},
                :object_end
              ]
     end
@@ -1283,11 +1293,11 @@ defmodule JxonSlimOriginalTest do
                :array_start,
                :object_start,
                {:object_key, "b"},
-               {:positive_number, "2"},
+               {:integer, "2"},
                :object_end,
                :array_end,
                {:object_key, "c"},
-               {:positive_number, "3"},
+               {:integer, "3"},
                :object_end
              ]
     end
@@ -1355,9 +1365,9 @@ defmodule JxonSlimOriginalTest do
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :object_start,
                {:object_key, "a"},
-               {:positive_number, "1"},
+               {:integer, "1"},
                {:object_key, "b"},
-               {:positive_number, "2"},
+               {:integer, "2"},
                :object_end
              ]
     end
@@ -1368,9 +1378,9 @@ defmodule JxonSlimOriginalTest do
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :object_start,
                {:object_key, "a"},
-               {:positive_number, "1"},
+               {:integer, "1"},
                {:object_key, "a"},
-               {:positive_number, "2"},
+               {:integer, "2"},
                :object_end
              ]
     end
@@ -1401,7 +1411,7 @@ defmodule JxonSlimOriginalTest do
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) == [
                :object_start,
                {:object_key, ""},
-               {:positive_number, "1"},
+               {:integer, "1"},
                :object_end
              ]
     end
