@@ -1,7 +1,5 @@
 defmodule OriginalSlimHandler do
   @string :string
-  @positive_number :positive_number
-  @negative_number :negative_number
   @object_start :object_start
   @object_key :object_key
   @object_end :object_end
@@ -21,6 +19,7 @@ defmodule OriginalSlimHandler do
   # @object_end 5
   # @array_start 6
   # @array_end 7
+
   def do_true(_original, _start_index, _end_index, acc) do
     [true | acc]
   end
@@ -52,20 +51,6 @@ defmodule OriginalSlimHandler do
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
     [{@float, numb} | acc]
-  end
-
-  # Positive and negative numbers is not the distinction we care about. It's integers
-  # and floats, most likely. We should emit a fn for float and one for integer. Ergh..
-  def do_negative_number(original, start_index, end_index, acc) when start_index <= end_index do
-    len = end_index - start_index + 1
-    numb = :binary.part(original, start_index, len)
-    [{@negative_number, numb} | acc]
-  end
-
-  def do_positive_number(original, start_index, end_index, acc) when start_index <= end_index do
-    len = end_index - start_index + 1
-    numb = :binary.part(original, start_index, len)
-    [{@positive_number, numb} | acc]
   end
 
   def start_of_object(_original, _start_index, acc) do

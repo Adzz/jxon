@@ -20,7 +20,7 @@ decode_inputs = [
   # "GitHub",
   # "Giphy",
   # GovTrack is 3.9mb file.
-  "GovTrack"
+  # "GovTrack"
   # "canada"
   # "Blockchain",
   # "Pokedex",
@@ -28,7 +28,7 @@ decode_inputs = [
   # "JSON Generator (Pretty)",
   # "UTF-8 escaped",
   # "UTF-8 unescaped",
-  # "Issue 90"
+  "Issue 90"
 ]
 
 read_data = fn name ->

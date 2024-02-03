@@ -117,10 +117,6 @@ defmodule JxonSlimOriginal do
         {end_index, acc} ->
           <<_skip::binary-size(end_index - current_index), after_numb::bits>> = j
           parse_remaining_whitespace(after_numb, original, end_index, acc, handler)
-          # case handler.do_negative_number(original, current_index, end_index - 1, acc) do
-          # {:error, _, _} = error -> error
-          # acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
-          # end
       end
     end
   end
@@ -142,10 +138,6 @@ defmodule JxonSlimOriginal do
         {end_index, acc} ->
           <<_skip::binary-size(end_index - current_index), rest::bits>> = j
           parse_remaining_whitespace(rest, original, end_index, acc, handler)
-          # case handler.do_positive_number(original, current_index, end_index - 1, acc) do
-          #   {:error, _, _} = error -> error
-          #   acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
-          # end
       end
     end
   end
@@ -384,7 +376,8 @@ defmodule JxonSlimOriginal do
             <<_::binary-size(after_whitespace_index - end_index), after_whitespace::bits>> = rest
 
             case after_whitespace do
-              # The situation here is you have closed the object before an
+              # The situation here is you have closed the object before an array but you can never
+              # get here because you get a different error first.
               <<@close_object, _rest::bits>> ->
                 raise "hell"
 
@@ -489,15 +482,8 @@ defmodule JxonSlimOriginal do
            depth_stack
          ) do
       case parse_number(number, current_index + 2, current_index, original, handler, acc) do
-        {:error, _, _} = error ->
-          error
-
-        {end_index, acc} ->
-          {end_index, acc, depth_stack}
-          # case handler.do_negative_number(original, current_index, end_index - 1, acc) do
-          # {:error, _, _} = error -> error
-          # acc -> {end_index, acc, depth_stack}
-          # end
+        {:error, _, _} = error -> error
+        {end_index, acc} -> {end_index, acc, depth_stack}
       end
     end
   end
@@ -520,21 +506,8 @@ defmodule JxonSlimOriginal do
            depth_stack
          ) do
       case parse_number(json, current_index, current_index, original, handler, acc) do
-        {:error, _, _} = error ->
-          error
-
-        {end_index, acc} ->
-          {end_index, acc, depth_stack}
-          # Here we really want to know if we got a float or not. I'd like to do that
-          # without having to pass handler and all that jazz to parse_number... But maybe
-          # we can't
-
-          # we subtract 1 because we are only sure we have finished parsing the number once
-          # we have stepped past it. So end_index points to one char after the end of the number.
-          # case handler.do_positive_number(original, current_index, end_index - 1, acc) do
-          # {:error, _, _} = error -> error
-          # acc -> {end_index, acc, depth_stack}
-          # end
+        {:error, _, _} = error -> error
+        {end_index, acc} -> {end_index, acc, depth_stack}
       end
     end
   end
@@ -795,14 +768,7 @@ defmodule JxonSlimOriginal do
     end
   end
 
-  defp parse_number(
-         <<@decimal_point, _rest::bits>>,
-         current_index,
-         start_index,
-         original,
-         handler,
-         acc
-       ) do
+  defp parse_number(<<@decimal_point, _rest::bits>>, current_index, _, _, _, _) do
     {:error, :invalid_decimal_number, current_index + 1}
   end
 
@@ -858,13 +824,6 @@ defmodule JxonSlimOriginal do
            acc
          ) do
       parse_fractional_digits(rest, current_index + 1, start_index, original, handler, acc)
-      # end_index = parse_digits(rest, current_index)
-      # <<_::binary-size(end_index - current_index), the_rest::bits>> = rest
-
-      # case the_rest do
-      #   <<e, rest::bits>> when e in 'eE' -> parse_exponent(rest, end_index + 1)
-      #   _ -> end_index
-      # end
     end
   end
 
