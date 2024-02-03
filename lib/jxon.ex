@@ -57,12 +57,26 @@ defmodule Jxon do
   """
 
   def parse(json) do
-    instructions =
-      JxonSlim.parse(json, SlimerHandler, 0, [])
-      |> IO.inspect(limit: :infinity, label: "")
+    instructions = JxonSlim.parse(json, SlimerHandler, 0, [])
 
+    # TODO : start again coz this is trash. Just do a stack and collapse shit like in
+    # the Sax handlers.. Not hard.
+    # ALso. Don't do this at all. We have to get to passing the schemas into the handler
+    # next.
+    # Basically we should try pushing around the original binary everywhere to comapre as
+    # it looks like that's what Jason does anyway.
     execute_instructions(instructions, json)
   end
+
+  # The options are:
+  # 1. Have a data accessor that acts on this stream of instructions.
+  # - What is a good data structure for that? Likely a list is not? I suppose you always
+  #   need to iterate over the list anyway. We would have to track depth as we navigated
+  #   it most likely?
+  # 2. Just write a Fn that makes a call on what to do with the type for now
+  # - this requires splitting ints and floats though.
+  # 3. Ignore these, make a version that passes original around and then benchmark that.
+  # 4.
 
   # First we see what the first instruction is. If it is a value, we just return that and
   # we are done. If it is an object or an array then we have to accumulate!

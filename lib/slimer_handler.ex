@@ -44,32 +44,6 @@ defmodule SlimerHandler do
   perf or not..
   """
 
-  # How do we factor in the schemas then. We need to be able to traverse the schema in lock
-  # step with the parsing of the fields. We could do this a few ways. One is to generate the
-  # list of bytes as we do here, then have pass over it that constructs the structs and stuff.
-  # OR we can try and put the schema here, and then skip the relevant parts. Let's try the latter
-  # That will involve knowing when we can stop "skipping" which for lists might not be trivial.
-
-  # First we need a path syntax. I guess it makes sense to borrow from Access a bit, but
-  # we are going to alter it a bit to allow saying :all: (later we could add :first, :last)
-
-  # ["object_key", 0, :all].
-
-  # Wait does all always exist at the end of the path? I guess it's up to us if we want to
-  # allow saying something like "get me all the object keys inside all the arrays", then get
-  # me all of THEIR lists of stuff. But is this getting us into xpath territory... We could
-  # enforce that if you do an {:all} you have to have an has_many or list_of. Essentially
-  # your schema has to quite closely match the incoming data. Then if you wanted to flatten
-  # it etc you'd do it in Elixir?
-
-  # I think for the XML stuff that's the approach we took, which has the consequence that
-  # you can generate schemas from an example data type. It also means you can do some interesting
-  # validations on paths? Probs is faster in a superficial way because it kicks some stuff
-  # down the road. But actually if we can tie in the "dont add it to acc unless I need it" then
-  # we effectively filter down the data before searching.
-
-  # The final boss is can we cast it into a struct, especially if we consider aggregates?
-
   def do_true(start_index, end_index, acc) when start_index <= end_index do
     [true | acc]
   end
@@ -103,8 +77,14 @@ defmodule SlimerHandler do
     [@object_start | acc]
   end
 
+  # Whilst there is a question about how we get the sub binary here like can we let the user
+  # decide whether to copy the binary or not.
   def object_key(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - 1 - (start_index + 1) + 1
+    # we really want the object keys stored here because we need them to search and
+    # don't want to have to keep calling :binary.part ? It's like repeated work, right?
+    # So either we save it here, or we have to do a pass over the instructions to fill it in
+    # which seems bad because like how many times we iterating over it lmao.
     [{@object_key, start_index + 1, len} | acc]
   end
 
@@ -121,6 +101,7 @@ defmodule SlimerHandler do
   end
 
   def end_of_document(_end_index, acc) do
-    acc
+    # Whether we reverse this or not is an interesing Q
+    Enum.reverse(acc)
   end
 end

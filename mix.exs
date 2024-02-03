@@ -11,21 +11,19 @@ defmodule Jxon.MixProject do
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
       {:benchee, ">=0.0.0", only: [:dev]},
       {:jason, ">=0.0.0", only: [:dev]},
       {:poison, ">=0.0.0", only: [:dev]},
-      {:decimal, ">=0.0.0", only: [:dev]}
+      {:decimal, ">=0.0.0", only: [:dev, :test]},
+      {:data_schema, ">=0.0.0", only: [:dev, :test]}
     ]
   end
 end
