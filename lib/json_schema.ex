@@ -95,7 +95,7 @@ defmodule JsonSchema do
           "date": "10th Feb",
           "time": "4pm"
         }
-        "has_many_things": [
+        "has_many": [
           { "first_key": "eat more water" },
           { "first_key": "drink more food" }
         ]
@@ -133,7 +133,7 @@ defmodule JsonSchema do
           "date": "10th Feb",
           "time": "4pm"
         },
-        "has_many_things": [
+        "has_many": [
           { "first_key": "eat more water" },
           { "first_key": "drink more food" }
         ]

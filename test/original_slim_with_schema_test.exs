@@ -1,7 +1,46 @@
 defmodule OriginalSlimWithSchemaTest do
   use ExUnit.Case
 
-  @acc {Schema, []}
+  @acc {%Schema{}, []}
+
+  test "schema test" do
+    json = """
+      {
+        "name": "TED DANSON QUEEN",
+        "integer": "9999",
+        "float": 1.5,
+        "decimal": "8.2",
+        "string": "take me out to the balls game",
+        "list": [1,2,345],
+        "aggregate": {
+          "date": "10th Feb",
+          "time": "4pm"
+        },
+        "has_many": [
+          { "first_key": "eat more water" },
+          { "first_key": "drink more food" }
+        ]
+      }
+    """
+
+    assert JxonSlimOriginal.parse(json, json, OriginalSlimWithSchema, 0, @acc) ==
+             %{
+               "name" => "TED DANSON QUEEN",
+               "integer" => "9999",
+               "float" => "1.5",
+               "decimal" => "8.2",
+               "string" => "take me out to the balls game",
+               "list" => ["1", "2", "345"],
+               "aggregate" => %{
+                 "date" => "10th Feb",
+                 "time" => "4pm"
+               },
+               "has_many" => [
+                 %{"first_key" => "eat more water"},
+                 %{"first_key" => "drink more food"}
+               ]
+             }
+  end
 
   describe "bare values" do
     @describetag :values
