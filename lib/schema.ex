@@ -89,45 +89,35 @@ defmodule Schema do
 
 
   """
-  @schema_one %{
-    # Not sure if this is a good idea yet. Still think a flat stack is a better idea but it
-    # requires being able to easily search all siblings.
-    :object => %{
-      "name" => true,
-      "integer" => true,
-      "float" => true,
-      "decimal" => true,
-      "string" => true,
-      "list" => %{:all => true},
-      "aggregate" => %{
-        object: %{
-          "date" => true,
-          "time" => true
-        }
-      },
-      "has_many" => %{
-        :all => %{object: %{"first_key" => true}}
-      }
-    }
-  }
-  defstruct schema: @schema_one, path_prefix: []
+  # Not actually sure that this is a good idea. But for now the way we are "remembering"
+  # is by storing a path of ancestors and then applying that to the source data to return
+  # back up. It definitely feels bad man. But... it's simpler to think about?
+  defstruct([:schema, :current, path_prefix: []])
 
   def contains?(schema, key) do
     # schema |> IO.inspect(limit: :infinity, label: "b4")
     # key |> IO.inspect(limit: :infinity, label: "contains key")
+    the_schema = if is_nil(schema.current), do: schema.schema, else: schema.current
 
-    case Map.get(schema.schema, key) do
+    case Map.get(the_schema, key) do
       true -> schema
       nil -> false
-      inner -> %{schema | schema: inner, path_prefix: [key | schema.path_prefix]}
+      inner -> %{schema | current: inner, path_prefix: [key | schema.path_prefix]}
     end
   end
 
   def step_back_array(schema) do
     case schema.path_prefix do
+      [] ->
+        %{schema | current: schema.schema, path_prefix: []}
+
+      [:object] ->
+        rest_schema = schema.schema
+        %{schema | current: rest_schema, path_prefix: []}
+
       [_item | rest_prefix] ->
-        rest_schema = get_in(@schema_one, Enum.reverse(rest_prefix))
-        %{schema | schema: rest_schema, path_prefix: rest_prefix}
+        rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
+        %{schema | current: rest_schema, path_prefix: rest_prefix}
     end
   end
 
@@ -135,17 +125,17 @@ defmodule Schema do
   # if we are in an array. Which should mean if :all is in the path?
   def step_back_object(schema) do
     case schema.path_prefix do
-      [item, :all | rest_prefix] ->
-        rest_schema = get_in(@schema_one, Enum.reverse([:all | rest_prefix]))
-        %{schema | schema: rest_schema, path_prefix: [:all | rest_prefix]}
+      [_item, :all | rest_prefix] ->
+        rest_schema = get_in(schema.schema, Enum.reverse([:all | rest_prefix]))
+        %{schema | current: rest_schema, path_prefix: [:all | rest_prefix]}
 
-      [:object, item | rest_prefix] ->
-        rest_schema = get_in(@schema_one, Enum.reverse(rest_prefix))
-        %{schema | schema: rest_schema, path_prefix: rest_prefix}
+      [:object, _item | rest_prefix] ->
+        rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
+        %{schema | current: rest_schema, path_prefix: rest_prefix}
 
-      [item | rest_prefix] ->
-        rest_schema = get_in(@schema_one, Enum.reverse(rest_prefix))
-        %{schema | schema: rest_schema, path_prefix: rest_prefix}
+      [_item | rest_prefix] ->
+        rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
+        %{schema | current: rest_schema, path_prefix: rest_prefix}
     end
   end
 end

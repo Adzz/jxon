@@ -1,36 +1,51 @@
 defmodule OriginalSlimWithSchema do
-  @string :string
-  @object_start :object_start
   @object_key :object_key
-  @object_end :object_end
-  @array_start :array_start
-  @array_end :array_end
-  @integer :integer
-  @float :float
 
-  # @string 0
-  # @positive_number 1
-  # @negative_number 2
-  # @object_start 3
-  # @object_key 4
-  # @object_end 5
-  # @array_start 6
-  # @array_end 7
+  def do_true(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
 
-  # Likely we have to figure out if it's an object value or not. TBD
+  def do_true(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
+  end
+
   def do_true(_original, _start_index, _end_index, {schema, acc}) do
     {schema, add_value(true, acc)}
+  end
+
+  def do_false(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
+
+  def do_false(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
   end
 
   def do_false(_original, _start_index, _end_index, {schema, acc}) do
     {schema, add_value(false, acc)}
   end
 
+  def do_null(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
+
+  def do_null(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
+  end
+
   def do_null(_original, _start_index, _end_index, {schema, acc}) do
     {schema, add_value(nil, acc)}
   end
 
-  def do_string(original, start_index, end_index, {schema, acc}) when start_index <= end_index do
+  def do_string(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
+
+  def do_string(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
+  end
+
+  def do_string(original, start_index, end_index, {schema, acc}) do
     # len = end_index - 1 - (start_index + 1) + 1
     # string = :binary.part(original, start_index, len)
     len = end_index - start_index + 1
@@ -39,10 +54,26 @@ defmodule OriginalSlimWithSchema do
     {schema, add_value(string, acc)}
   end
 
+  def do_integer(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
+
+  def do_integer(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
+  end
+
   def do_integer(original, start_index, end_index, {schema, acc}) when start_index <= end_index do
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
     {schema, add_value(numb, acc)}
+  end
+
+  def do_float(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
+    {schema, rest}
+  end
+
+  def do_float(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
+    acc
   end
 
   def do_float(original, start_index, end_index, {schema, acc}) when start_index <= end_index do
@@ -51,17 +82,23 @@ defmodule OriginalSlimWithSchema do
     {schema, add_value(numb, acc)}
   end
 
-  def start_of_object(_original, start_index, {schema, acc}) do
-    # So here we want to check that we are expecting an object? I think erroring on a type
-    # difference is good but erroring on a value being missing should be handled elsewhere
-    # in data_schema.
-    if schema = schema.__struct__.contains?(schema, :object) do
-      {schema, [%{} | acc]}
+  # Here's the thing here, because
+  # the lexer is taking care of ensuring correctness, I feel like we may just be able to
+  # have two integers, one for object depth and one for array depth.
+  def start_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
+    {schema, [{:skip, array_depth, obj_depth + 1} | rest_acc]}
+  end
+
+  def start_of_object(_original, _start_index, {schema, acc}) do
+    if inner = schema.__struct__.contains?(schema, :object) do
+      {inner, [%{} | acc]}
     else
-      # We'd need a better error pointing exactly to the field we care about ideally.
-      # Which we could get with a cheeky schema.get_current_node() or something?
-      {:error, "Object found but schema did not expect one.", start_index}
+      {schema, [{:skip, 0, 1} | acc]}
     end
+  end
+
+  def object_key(_original, _start_index, _end_index, {_, [{:skip, _, _} | _]} = acc) do
+    acc
   end
 
   def object_key(original, start_index, end_index, {schema, acc}) when start_index <= end_index do
@@ -72,7 +109,17 @@ defmodule OriginalSlimWithSchema do
     if inner = schema.__struct__.contains?(schema, key) do
       {inner, add_value({@object_key, key}, acc)}
     else
-      {schema, add_value({:skip, 0}, acc)}
+      {schema, [{:skip, 0, 0} | acc]}
+    end
+  end
+
+  def end_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
+    new_obj_depth = obj_depth - 1
+
+    if new_obj_depth <= 0 && array_depth <= 0 do
+      {schema, rest_acc}
+    else
+      {schema, [{:skip, array_depth, new_obj_depth} | rest_acc]}
     end
   end
 
@@ -92,11 +139,25 @@ defmodule OriginalSlimWithSchema do
     end
   end
 
-  def start_of_array(_original, start_index, {schema, acc}) do
-    if schema = schema.__struct__.contains?(schema, :all) do
-      {schema, [[] | acc]}
+  def start_of_array(_, _, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
+    {schema, [{:skip, array_depth + 1, obj_depth} | rest_acc]}
+  end
+
+  def start_of_array(_original, _start_index, {schema, acc}) do
+    if inner = schema.__struct__.contains?(schema, :all) do
+      {inner, [[] | acc]}
     else
-      {:error, "Not actually sure just yet", start_index}
+      {schema, [{:skip, 1, 0} | acc]}
+    end
+  end
+
+  def end_of_array(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
+    new_array_depth = array_depth - 1
+
+    if new_array_depth <= 0 && obj_depth <= 0 do
+      {schema, rest_acc}
+    else
+      {schema, [{:skip, new_array_depth, obj_depth} | rest_acc]}
     end
   end
 

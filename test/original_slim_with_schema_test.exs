@@ -1,29 +1,59 @@
 defmodule OriginalSlimWithSchemaTest do
   use ExUnit.Case
 
-  @acc {%Schema{}, []}
-
   test "schema test" do
     json = """
       {
         "name": "TED DANSON QUEEN",
         "integer": "9999",
+        "ignored": { "deeply": { "ignored": [1,2,3,4, {"again": true} ] } },
         "float": 1.5,
         "decimal": "8.2",
         "string": "take me out to the balls game",
         "list": [1,2,345],
         "aggregate": {
+          "ignored": "key",
+          "ignored2": "key",
           "date": "10th Feb",
-          "time": "4pm"
+          "ignored3": "key",
+          "time": "4pm",
+          "ignored4": "key"
         },
         "has_many": [
-          { "first_key": "eat more water" },
-          { "first_key": "drink more food" }
+          { "ignored": "key", "first_key": "eat more water" },
+          { "first_key": "drink more food", "ignored": "key" }
         ]
       }
     """
 
-    assert JxonSlimOriginal.parse(json, json, OriginalSlimWithSchema, 0, @acc) ==
+    # Not sure if this is a good idea yet. Still think a flat stack is a better idea but it
+    # requires being able to easily search all siblings.
+    schema = %Schema{
+      current: nil,
+      schema: %{
+        :object => %{
+          "name" => true,
+          "integer" => true,
+          "float" => true,
+          "decimal" => true,
+          "string" => true,
+          "list" => %{:all => true},
+          "aggregate" => %{
+            object: %{
+              "date" => true,
+              "time" => true
+            }
+          },
+          "has_many" => %{
+            :all => %{object: %{"first_key" => true}}
+          }
+        }
+      }
+    }
+
+    acc = {schema, []}
+
+    assert JxonSlimOriginal.parse(json, json, OriginalSlimWithSchema, 0, acc) ==
              %{
                "name" => "TED DANSON QUEEN",
                "integer" => "9999",

@@ -59,8 +59,8 @@ defmodule JxonSlimOriginal do
                       @n,
                       @t
                     ] ++ @digits
-  @object 1
   @array 0
+  @object 1
 
   # OKAY So this is a good read. https://rhye.org/post/erlang-binary-matching-performance/
 
