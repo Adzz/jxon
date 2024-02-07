@@ -88,6 +88,9 @@ defmodule Schema do
   a subtree then get rid, but if we are still in a list then keep it.
 
 
+  Another thought. The kind of traversal we want to do is, find the element in the siblings
+  then return its children. Then repeat. But we want to be able to back track.
+
   """
   # Not actually sure that this is a good idea. But for now the way we are "remembering"
   # is by storing a path of ancestors and then applying that to the source data to return

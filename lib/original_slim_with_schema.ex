@@ -1,6 +1,15 @@
 defmodule OriginalSlimWithSchema do
   @object_key :object_key
 
+  @moduledoc """
+  Notes:
+
+    - because the lexer handles the correctness of object/array nesting here we don't have
+      to do the same we just have to keep a count with two integers. We know we have done
+      skipping once the count is == 0.
+
+  """
+
   def do_true(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     {schema, rest}
   end
@@ -82,9 +91,6 @@ defmodule OriginalSlimWithSchema do
     {schema, add_value(numb, acc)}
   end
 
-  # Here's the thing here, because
-  # the lexer is taking care of ensuring correctness, I feel like we may just be able to
-  # have two integers, one for object depth and one for array depth.
   def start_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
     {schema, [{:skip, array_depth, obj_depth + 1} | rest_acc]}
   end

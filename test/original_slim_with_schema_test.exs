@@ -72,444 +72,482 @@ defmodule OriginalSlimWithSchemaTest do
              }
   end
 
-  # describe "bare values" do
-  #   @describetag :values
-  #   test "an invalid bare value whitespace" do
-  #     json_string = "    banana  "
+  describe "bare values" do
+    @describetag :values
+    test "an invalid bare value whitespace" do
+      json_string = "    banana  "
+      schema = %Schema{current: nil, schema: %{bare_value: :boolean}}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
+      assert JxonSlimOriginal.parse(
+               json_string,
+               json_string,
+               OriginalSlimWithSchema,
+               0,
+               {schema, []}
+             ) ==
+               {:error, :invalid_json_character, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == "b"
-  #   end
+      assert :binary.part(json_string, 4, 1) == "b"
+    end
 
-  #   test "just space is an error..." do
-  #     json_string = " "
+    test "just space is an error..." do
+      json_string = " "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              []
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               []
+    end
 
-  #   test "an invalid bare value" do
-  #     json_string = "banana"
+    test "an invalid bare value" do
+      json_string = "banana"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 0}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 0}
 
-  #     assert :binary.part(json_string, 0, 1) == "b"
-  #   end
+      assert :binary.part(json_string, 0, 1) == "b"
+    end
 
-  #   test "an invalid bare value after a valid one" do
-  #     json_string = "true banana"
+    test "an invalid bare value after a valid one" do
+      json_string = "true banana"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 5}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 5}
 
-  #     assert :binary.part(json_string, 5, 1) == "b"
-  #   end
+      assert :binary.part(json_string, 5, 1) == "b"
+    end
 
-  #   test "bare values surrounded by white space works" do
-  #     json_string = " \t \n \r false  \t \n \r  "
+    test "bare values surrounded by white space works" do
+      json_string = " \t \n \r false  \t \n \r  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                true
-  #              ]
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 true
+               ]
 
-  #     json_string = "  \t \n \r  true  \t \n \r  "
+      json_string = "  \t \n \r  true  \t \n \r  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                true
-  #              ]
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 true
+               ]
 
-  #     json_string = "  \t \n \r  null  \t \n \r  "
+      json_string = "  \t \n \r  null  \t \n \r  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                nil
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
+               nil
+             ]
+    end
 
-  #   test "invalid multiple bare values with whitespace" do
-  #     json_string = "    false  true  "
-  #     # What is a good error message here? Pointing to the part that went wrong is probably
-  #     # good, but might be hard for large strings?
+    test "invalid multiple bare values with whitespace" do
+      json_string = "    false  true  "
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 11}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 11}
 
-  #     assert :binary.part(json_string, 11, 1) == "t"
+      assert :binary.part(json_string, 11, 1) == "t"
 
-  #     json_string = "  \t \n \r  true  \t \n \r  false   \t \n \r   "
+      json_string = "  \t \n \r  true  \t \n \r  false   \t \n \r   "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 22}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 22}
 
-  #     assert :binary.part(json_string, 22, 1) == "f"
+      assert :binary.part(json_string, 22, 1) == "f"
 
-  #     json_string = "  \t \n \r  null  \t \n \r  true   \t \n \r  "
+      json_string = "  \t \n \r  null  \t \n \r  true   \t \n \r  "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 22}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 22}
 
-  #     assert :binary.part(json_string, 22, 1) == "t"
-  #   end
+      assert :binary.part(json_string, 22, 1) == "t"
+    end
 
-  #   test "invalid multiple bare values with whitespace and nested errors" do
-  #     json_string = "  \t \n \r  false   \t \n \r   tru   \t \n \r   "
-  #     # What is a good error message here? Pointing to the part that went wrong is probably
-  #     # good, but might be hard for large strings?
+    test "invalid multiple bare values with whitespace and nested errors" do
+      json_string = "  \t \n \r  false   \t \n \r   tru   \t \n \r   "
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 25}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 25}
 
-  #     assert :binary.part(json_string, 25, 1) == "t"
-  #   end
+      assert :binary.part(json_string, 25, 1) == "t"
+    end
 
-  #   test "multiple bare values starting with true" do
-  #     json_string = "   \t \n \r     true    \t \n \r   flse    \t \n \r  "
+    test "multiple bare values starting with true" do
+      json_string = "   \t \n \r     true    \t \n \r   flse    \t \n \r  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 29}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 29}
 
-  #     assert :binary.part(json_string, 29, 1) == "f"
+      assert :binary.part(json_string, 29, 1) == "f"
 
-  #     json_string = "  \t \n \r      null    \t \n \r    rue  \t \n \r  "
+      json_string = "  \t \n \r      null    \t \n \r    rue  \t \n \r  "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 30}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 30}
 
-  #     assert :binary.part(json_string, 30, 1) == "r"
-  #   end
+      assert :binary.part(json_string, 30, 1) == "r"
+    end
 
-  #   test "decimal followed by exp is an error" do
-  #     json_string = "1.e"
+    test "decimal followed by exp is an error" do
+      json_string = "1.e"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_decimal_number, 2}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
+    end
 
-  #   test "invalid multiple bare values and nested errors" do
-  #     json_string = "false tru"
-  #     # What is a good error message here? Pointing to the part that went wrong is probably
-  #     # good, but might be hard for large strings?
+    test "invalid multiple bare values and nested errors" do
+      json_string = "false tru"
+      # What is a good error message here? Pointing to the part that went wrong is probably
+      # good, but might be hard for large strings?
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 6}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 6}
 
-  #     assert :binary.part(json_string, 6, 1) == "t"
+      assert :binary.part(json_string, 6, 1) == "t"
 
-  #     json_string = "true:flse"
+      json_string = "true:flse"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == ":"
+      assert :binary.part(json_string, 4, 1) == ":"
 
-  #     json_string = "null,rue"
+      json_string = "null,rue"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == ","
-  #   end
+      assert :binary.part(json_string, 4, 1) == ","
+    end
 
-  #   test "invalid multiple bare values" do
-  #     json_string = "false true"
+    test "invalid multiple bare values" do
+      json_string = "false true"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 6}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 6}
 
-  #     assert :binary.part(json_string, 6, 1) == "t"
+      assert :binary.part(json_string, 6, 1) == "t"
 
-  #     json_string = "true:false"
+      json_string = "true:false"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == ":"
+      assert :binary.part(json_string, 4, 1) == ":"
 
-  #     json_string = "null,true"
+      json_string = "null,true"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == ","
-  #   end
-  # end
+      assert :binary.part(json_string, 4, 1) == ","
+    end
+  end
 
-  # describe "negative numbers" do
-  #   @describetag :neg_ints
+  describe "negative numbers" do
+    @describetag :neg_ints
 
-  #   test "leading decimal point" do
-  #     json_string = ".1"
+    test "leading decimal point" do
+      json_string = ".1"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 0}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 0}
+    end
 
-  #   test "invalid decimal point" do
-  #     json_string = "-..1"
+    test "invalid decimal point" do
+      json_string = "-..1"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 1}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 1}
+    end
 
-  #   test "leading decimal point in array is an error" do
-  #     json_string = "[.1]"
+    test "leading decimal point in array is an error" do
+      json_string = "[.1]"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 1}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 1}
+    end
 
-  #   test "invalid decimal point in array" do
-  #     json_string = "[-..1]"
+    test "invalid decimal point in array" do
+      json_string = "[-..1]"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 2}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 2}
+    end
 
-  #   test "parsing negative numbers is good and fine" do
-  #     json_string = "-1"
+    test "parsing negative numbers is good and fine" do
+      json_string = "-1"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                integer: "-1"
-  #              ]
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
+               "-1"
+             ]
 
-  #     json_string = "-10920394059687"
+      json_string = "-10920394059687"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                integer: "-10920394059687"
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               ["-10920394059687"]
+    end
 
-  #   test "negative with whitespace is wrong" do
-  #     json_string = "- 1"
+    test "negative with whitespace is wrong" do
+      json_string = "- 1"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 1}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 1}
 
-  #     assert :binary.part(json_string, 1, 1) == " "
-  #   end
+      assert :binary.part(json_string, 1, 1) == " "
+    end
 
-  #   test "negative sign only is wrong" do
-  #     json_string = "-"
+    test "negative sign only is wrong" do
+      json_string = "-"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 0}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 0}
 
-  #     assert :binary.part(json_string, 0, 1) == "-"
-  #   end
+      assert :binary.part(json_string, 0, 1) == "-"
+    end
 
-  #   test "int with error chars after" do
-  #     json_string = "-1;"
+    test "int with error chars after" do
+      json_string = "-1;"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 2}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_json_character, 2}
 
-  #     assert :binary.part(json_string, 2, 1) == ";"
-  #   end
+      assert :binary.part(json_string, 2, 1) == ";"
+    end
 
-  #   test "int with exponent" do
-  #     json_string = "-1e40  "
+    test "int with exponent" do
+      json_string = "-1e40  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                {:integer, "-1e40"}
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-1e40"
+               ]
+    end
 
-  #   test " 2.e3 is an error" do
-  #     json_string = "2.e3  "
+    test " 2.e3 is an error" do
+      json_string = "2.e3  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_decimal_number, 2}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
 
-  #     assert :binary.part(json_string, 2, 1) == "e"
-  #   end
+      assert :binary.part(json_string, 2, 1) == "e"
+    end
 
-  #   test " 2. is an error" do
-  #     json_string = "2.    "
+    test " 2. is an error" do
+      json_string = "2.    "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_decimal_number, 2}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
 
-  #     assert :binary.part(json_string, 2, 1) == " "
-  #   end
+      assert :binary.part(json_string, 2, 1) == " "
+    end
 
-  #   test " 2.+ is an error" do
-  #     json_string = "2.+    "
+    test " 2.+ is an error" do
+      json_string = "2.+    "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_decimal_number, 2}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_decimal_number, 2}
 
-  #     assert :binary.part(json_string, 2, 1) == "+"
-  #   end
+      assert :binary.part(json_string, 2, 1) == "+"
+    end
 
-  #   test "+ve int with exponent" do
-  #     json_string = "1e40  "
+    test "+ve int with exponent" do
+      json_string = "1e40  "
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                integer: "1e40"
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "1e40"
+               ]
+    end
 
-  #   test "int with capital exponent" do
-  #     json_string = "-1E40"
+    test "int with capital exponent" do
+      json_string = "-1E40"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                {:integer, "-1E40"}
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-1E40"
+               ]
+    end
 
-  #   test "int with positive exponent" do
-  #     json_string = "-11e+2"
+    test "int with positive exponent" do
+      json_string = "-11e+2"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                integer: "-11e+2"
-  #              ]
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-11e+2"
+               ]
 
-  #     json_string = "-11E+2"
+      json_string = "-11E+2"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                integer: "-11E+2"
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-11E+2"
+               ]
+    end
 
-  #   test "double e is wrong" do
-  #     json_string = "-11eE+2"
+    test "double e is wrong" do
+      json_string = "-11eE+2"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_exponent, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_exponent, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == "E"
+      assert :binary.part(json_string, 4, 1) == "E"
 
-  #     json_string = "-11Ee+2"
+      json_string = "-11Ee+2"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_exponent, 4}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_exponent, 4}
 
-  #     assert :binary.part(json_string, 4, 1) == "e"
-  #   end
+      assert :binary.part(json_string, 4, 1) == "e"
+    end
 
-  #   test "letter is wrong" do
-  #     json_string = "-11eEa2"
+    test "letter is wrong" do
+      json_string = "-11eEa2"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_exponent, 4}
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :invalid_exponent, 4}
+    end
 
-  #   test "negative decimal" do
-  #     json_string = "-1.5"
+    test "negative decimal" do
+      json_string = "-1.5"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                float: "-1.5"
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-1.5"
+               ]
+    end
 
-  #   test "leading 0s are not allowed negative decimal" do
-  #     json_string = "-01.5"
+    test "leading 0s are not allowed negative decimal" do
+      json_string = "-01.5"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :leading_zero, 1}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :leading_zero, 1}
 
-  #     assert :binary.part(json_string, 1, 1) == "0"
-  #   end
+      assert :binary.part(json_string, 1, 1) == "0"
+    end
 
-  #   test "leading 0s are not allowed -ve int" do
-  #     json_string = "-0001"
+    test "leading 0s are not allowed -ve int" do
+      json_string = "-0001"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :leading_zero, 1}
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :leading_zero, 1}
 
-  #     assert :binary.part(json_string, 1, 1) == "0"
-  #   end
+      assert :binary.part(json_string, 1, 1) == "0"
+    end
 
-  #   test "white space for a bare value is no invalid" do
-  #     json_string = "-1.5   \n \t \r"
+    test "white space for a bare value is no invalid" do
+      json_string = "-1.5   \n \t \r"
+      acc = {%Schema{current: nil, schema: %{}}, []}
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              [
-  #                {:float, "-1.5"}
-  #              ]
-  #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [
+                 "-1.5"
+               ]
+    end
 
-  #   test "invalid int" do
-  #     json_string = "-1.5;"
+    #   test "invalid int" do
+    #     json_string = "-1.5;"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 4}
-  #   end
+    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+    #              {:error, :invalid_json_character, 4}
+    #   end
 
-  #   test "multiple bare values is wrong -ve ints" do
-  #     json_string = "-1 -2 3 4 5"
+    #   test "multiple bare values is wrong -ve ints" do
+    #     json_string = "-1 -2 3 4 5"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 3}
+    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+    #              {:error, :multiple_bare_values, 3}
 
-  #     assert :binary.part(json_string, 3, 1) == "-"
-  #   end
+    #     assert :binary.part(json_string, 3, 1) == "-"
+    #   end
 
-  #   test "multiple bare values is wrong -ve ints invalid char" do
-  #     json_string = "-1.2 b -2.3 \n\t\r"
+    #   test "multiple bare values is wrong -ve ints invalid char" do
+    #     json_string = "-1.2 b -2.3 \n\t\r"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :invalid_json_character, 5}
+    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+    #              {:error, :invalid_json_character, 5}
 
-  #     assert :binary.part(json_string, 5, 1) == "b"
-  #   end
+    #     assert :binary.part(json_string, 5, 1) == "b"
+    #   end
 
-  #   test "multiple bare values is wrong -ve ints whitespace" do
-  #     json_string = "-1.2\n-2.3 \n\t\r"
+    #   test "multiple bare values is wrong -ve ints whitespace" do
+    #     json_string = "-1.2\n-2.3 \n\t\r"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
-  #              {:error, :multiple_bare_values, 5}
+    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+    #              {:error, :multiple_bare_values, 5}
 
-  #     assert :binary.part(json_string, 5, 1) == "-"
-  #   end
-  # end
+    #     assert :binary.part(json_string, 5, 1) == "-"
+    #   end
+  end
 
   # describe "positive numbers" do
   #   @describetag :pos_ints
   #   test "numbers with 0s in" do
   #     json_string = "102030405060708099887654321"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                integer: "102030405060708099887654321"
+  #                "102030405060708099887654321"
   #              ]
   #   end
 
   #   test "we can parse a number" do
   #     json_string = "1"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                integer: "1"
+  #                "1"
   #              ]
   #   end
 
   #   test "we can parse a float" do
   #     json_string = "1.500"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                float: "1.500"
+  #                 "1.500"
   #              ]
   #   end
 
   #   test "errors for +ve integer" do
   #     json_string = "1;"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 1}
 
   #     assert :binary.part(json_string, 1, 1) == ";"
@@ -518,59 +556,59 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "0 is allowed" do
   #     json_string = "0"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:integer, "0"}
+  #                "0"
   #              ]
   #   end
 
   #   test "0exp is allowed" do
   #     json_string = "0e1"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                integer: "0e1"
+  #                "0e1"
   #              ]
   #   end
 
   #   test "0exp + is allowed" do
   #     json_string = "0e+1"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:integer, "0e+1"}
+  #                "0e+1"
   #              ]
   #   end
 
   #   test "0exp - is allowed" do
   #     json_string = "0e-1"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                integer: "0e-1"
+  #                "0e-1"
   #              ]
   #   end
 
   #   test "0exp error is allowed" do
   #     json_string = "0e"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_exponent, 2}
   #   end
 
   #   test "-0 is allowed" do
   #     json_string = "-0"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                integer: "-0"
+  #                "-0"
   #              ]
   #   end
 
   #   test "errors for +ve float" do
   #     json_string = "1.5;"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 3}
 
   #     assert :binary.part(json_string, 3, 1) == ";"
@@ -579,66 +617,66 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "exponents" do
   #     json_string = "1.5e+40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                float: "1.5e+40"
+  #                 "1.5e+40"
   #              ]
 
   #     json_string = "1.5e-40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:float, "1.5e-40"}
+  #                 "1.5e-40"
   #              ]
 
   #     json_string = "1.5E+40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:float, "1.5E+40"}
+  #                 "1.5E+40"
   #              ]
 
   #     json_string = "1.5E-40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                # Wait is this a float or an int. I guess a positive one would be an integer
   #                # actually?
-  #                {:float, "1.5E-40"}
+  #                 "1.5E-40"
   #              ]
 
   #     json_string = "15e+40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:integer, "15e+40"}
+  #                "15e+40"
   #              ]
 
   #     json_string = "15e-40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                # Is this actually a float. Maybe having :numbers and :exponents or something..
-  #                {:integer, "15e-40"}
+  #                "15e-40"
   #              ]
 
   #     json_string = "15E+40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:integer, "15E+40"}
+  #                "15E+40"
   #              ]
 
   #     json_string = "15E-40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
-  #                {:integer, "15E-40"}
+  #                "15E-40"
   #              ]
 
   #     json_string = "15ee+40"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_exponent, 3}
 
   #     assert :binary.part(json_string, 3, 1) == "e"
@@ -647,26 +685,26 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "exponent error no number after e" do
   #     json_string = "15e"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_exponent, 3}
   #   end
 
   #   test "exponent error no number after E" do
   #     json_string = "15E"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_exponent, 3}
   #   end
 
   #   test "leading 0s" do
   #     json_string = "001"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_zero, 0}
 
   #     json_string = "01.5"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_zero, 0}
 
   #     assert :binary.part(json_string, 0, 1) == "0"
@@ -675,7 +713,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple bare values is wrong" do
   #     json_string = "1 2 3 4 5"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :multiple_bare_values, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "2"
@@ -684,7 +722,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple with a decimal number" do
   #     json_string = "1.2 . 2.3 \n\t\r"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 4}
 
   #     assert :binary.part(json_string, 4, 1) == "."
@@ -693,7 +731,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple decimals" do
   #     json_string = "1.2\n2.3 \n\t\r"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :multiple_bare_values, 4}
 
   #     assert :binary.part(json_string, 4, 1) == "2"
@@ -707,7 +745,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     # "[1,2,3,4]"
   #     json_string = "\"[1, 2, 3, 4]\""
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "[1, 2, 3, 4]"
   #              ]
@@ -716,7 +754,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "escaped quotation mark in string" do
   #     json_string = File.read!("/Users/Adz/Projects/jxon/test/fixtures/escapes_string.json")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "this is what he said: \\\"no\\\""
   #              ]
@@ -726,7 +764,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     json_string = ~s("\\ ")
   #     # This would be an error you would handle and implement in the callback where you did
   #     # string escaping.
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "\\ "
   #              ]
@@ -735,7 +773,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "When the string is not terminated we error" do
   #     json_string = ~s("\\")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unterminated_string, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "\""
@@ -744,7 +782,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test ~s("\\"\\\\\\/\\b\\f\\n\\r\\t") do
   #     json_string = ~s("\\"\\\\\\/\\b\\f\\n\\r\\t")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "\\\"\\\\\\/\\b\\f\\n\\r\\t"
   #              ]
@@ -754,42 +792,42 @@ defmodule OriginalSlimWithSchemaTest do
   #     # This enables JCS
   #     json_string = ~s("\\u2603")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "\\u2603"
   #              ]
 
   #     json_string = ~s("\\u2028\\u2029")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "\\u2028\\u2029"
   #              ]
 
   #     json_string = ~s("\\uD834\\uDD1E")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "\\uD834\\uDD1E"
   #              ]
 
   #     json_string = ~s("\\uD834\\uDD1E")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                {:string, "\\uD834\\uDD1E"}
   #              ]
 
   #     json_string = ~s("\\uD799\\uD799")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                {:string, "\\uD799\\uD799"}
   #              ]
 
   #     json_string = ~s("✔︎")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                {:string, "✔︎"}
   #              ]
@@ -798,7 +836,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple strings when there shouldn't be" do
   #     json_string = ~s("this is valid " "this is not!")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :multiple_bare_values, 17}
 
   #     assert :binary.part(json_string, 17, 1) == "\""
@@ -807,7 +845,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "a string with numbers in it works" do
   #     json_string = ~s(" one 1 two 2 ")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: " one 1 two 2 "
   #              ]
@@ -816,7 +854,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "numbers in a string all having fun" do
   #     json_string = ~s("1,2,3,4,5,6")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                string: "1,2,3,4,5,6"
   #              ]
@@ -829,7 +867,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " [\"a\"] " do
   #     json_string = File.read!("./test/test_parsing/y_structure_trailing_newline.json")
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                {:string, "a"},
@@ -840,7 +878,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "open array whitespace and an error is an error" do
   #     json_string = "[ b "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "b"
@@ -849,7 +887,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "open array and an error is an error" do
   #     json_string = "[b "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 1}
 
   #     assert :binary.part(json_string, 1, 1) == "b"
@@ -858,7 +896,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "empty array" do
   #     json_string = "[]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :array_end
@@ -868,10 +906,10 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "array of one number" do
   #     json_string = "[1]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
-  #                {:integer, "1"},
+  #                "1",
   #                :array_end
   #              ]
   #   end
@@ -879,14 +917,14 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "array of one number trialing comma" do
   #     json_string = "[1,]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :trailing_comma, 2}
   #   end
 
   #   test "array of string" do
   #     json_string = "[\"1\"]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                {:string, "1"},
@@ -897,7 +935,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "array of boolean and nil" do
   #     json_string = "[true, false, null]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                true,
@@ -910,7 +948,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "nested stuff" do
   #     json_string = "[[true, []], [[\"a\",false,\"b\"\n\t\r], [1, null, 2.50, 112.2, 8]]]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :array_start,
@@ -925,11 +963,11 @@ defmodule OriginalSlimWithSchemaTest do
   #                {:string, "b"},
   #                :array_end,
   #                :array_start,
-  #                {:integer, "1"},
+  #                "1",
   #                nil,
-  #                {:float, "2.50"},
-  #                {:float, "112.2"},
-  #                {:integer, "8"},
+  #                 "2.50",
+  #                 "112.2",
+  #                "8",
   #                :array_end,
   #                :array_end,
   #                :array_end
@@ -941,7 +979,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     json_string = "[1"
 
   #     assert {:error, :unclosed_array, index} =
-  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc)
+  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc)
 
   #     assert index == 1
   #     assert :binary.part(json_string, index, 1) == "1"
@@ -951,7 +989,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     json_string = "[1 2]"
 
   #     assert {:error, :multiple_bare_values, index} =
-  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc)
+  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc)
 
   #     assert index == 3
   #     assert :binary.part(json_string, index, 1) == "2"
@@ -961,7 +999,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     json_string = "[1 2"
 
   #     assert {:error, :multiple_bare_values, index} =
-  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc)
+  #              JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc)
 
   #     assert index == 3
   #     assert :binary.part(json_string, index, 1) == "2"
@@ -970,7 +1008,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "just commas" do
   #     json_string = "[,]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_comma, 1}
 
   #     assert :binary.part(json_string, 1, 1) == ","
@@ -979,7 +1017,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "double comma" do
   #     json_string = "[1,,,,,,]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :double_comma, 3}
 
   #     assert :binary.part(json_string, 3, 1) == ","
@@ -988,7 +1026,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "leading_comma comma" do
   #     json_string = "[,,,,,,]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_comma, 1}
 
   #     assert :binary.part(json_string, 1, 1) == ","
@@ -997,7 +1035,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unclosed trailing comma" do
   #     json_string = "[1,2  , "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 7}
 
   #     assert :binary.part(json_string, 7, 1) == " "
@@ -1006,7 +1044,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "trailing comma [1,2,] " do
   #     json_string = "[1,2,]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :trailing_comma, 4}
 
   #     assert :binary.part(json_string, 4, 1) == ","
@@ -1016,7 +1054,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "nested array" do
   #     json_string = "[[]]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :array_start,
@@ -1028,7 +1066,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unclosed" do
   #     json_string = "[ {\"q\" : ["
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 9}
 
   #     assert :binary.part(json_string, 9, 1) == "["
@@ -1037,7 +1075,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unclosed 2" do
   #     json_string = "{\"q\" : {"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_object_key, 7}
 
   #     assert :binary.part(json_string, 7, 1) == "{"
@@ -1054,7 +1092,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     # We could also be like, technically the first unclosed array will always be unclosed.
   #     # If there are more unclosed arrays inside it then that's good and all but still the
   #     # outer one is unclosed. But is that a help to someone?
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "]"
@@ -1063,7 +1101,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "nested unclosed array whitespace" do
   #     json_string = "[[  ] "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 4}
 
   #     assert :binary.part(json_string, 4, 1) == "]"
@@ -1072,15 +1110,15 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple nested array" do
   #     json_string = "[[], [1, [3]]]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :array_start,
   #                :array_end,
   #                :array_start,
-  #                {:integer, "1"},
+  #                "1",
   #                :array_start,
-  #                {:integer, "3"},
+  #                "3",
   #                :array_end,
   #                :array_end,
   #                :array_end
@@ -1090,7 +1128,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "nested with whitespace" do
   #     json_string = "[ [  \n\t ]\n\t\r,[  ] ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :array_start,
@@ -1109,7 +1147,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     json_string = "[ [ true ] , [ ] "
   #     # json_string = "[ [ [ true ] ], [ ] "
   #     # json_string = "[[ ]] "
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 15}
 
   #     assert :binary.part(json_string, 15, 1) == "]"
@@ -1118,7 +1156,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple array values is wrong [ [ true ] , [, ] " do
   #     json_string = "[ [ true ] , [, ] "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_comma, 14}
 
   #     assert :binary.part(json_string, 14, 1) == ","
@@ -1127,7 +1165,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "multiple array values is wrong [] []" do
   #     json_string = "[] []"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :multiple_bare_values, 3}
 
   #     assert :binary.part(json_string, 3, 1) == "["
@@ -1136,7 +1174,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "leading 0 integer" do
   #     json_string = "[001]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_zero, 1}
 
   #     assert :binary.part(json_string, 1, 1) == "0"
@@ -1145,7 +1183,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "leading 0 negative integer" do
   #     json_string = "[-001]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :leading_zero, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "0"
@@ -1154,10 +1192,10 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "0 is okay?" do
   #     json_string = "[0]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
-  #                {:integer, "0"},
+  #                "0",
   #                :array_end
   #              ]
   #   end
@@ -1165,10 +1203,10 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "minus 0 is unhinged but fine I guess? What even are numbers" do
   #     json_string = "[-0]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
-  #                {:integer, "-0"},
+  #                "-0",
   #                :array_end
   #              ]
   #   end
@@ -1176,10 +1214,10 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "minus 0 exp is unhinged but fine I guess? What even are numbers" do
   #     json_string = "[-0e+1]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
-  #                {:integer, "-0e+1"},
+  #                "-0e+1",
   #                :array_end
   #              ]
   #   end
@@ -1187,7 +1225,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "too many closing arrays" do
   #     json_string = "[  true ]  ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 11}
 
   #     assert :binary.part(json_string, 11, 1) == "]"
@@ -1196,10 +1234,10 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " [0e+1] " do
   #     json_string = "[0e+1]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
-  #                {:integer, "0e+1"},
+  #                "0e+1",
   #                :array_end
   #              ]
   #   end
@@ -1207,7 +1245,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unopened array example" do
   #     json_string = "[ [], ] ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :trailing_comma, 4}
 
   #     assert :binary.part(json_string, 4, 1) == ","
@@ -1216,7 +1254,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unopened array is really just an errant comma" do
   #     json_string = "[  true ],  ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 9}
 
   #     assert :binary.part(json_string, 9, 1) == ","
@@ -1225,7 +1263,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "start with a closing array." do
   #     json_string = " ]  ["
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 1}
 
   #     assert :binary.part(json_string, 1, 1) == "]"
@@ -1234,7 +1272,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "valid array but then weird chars" do
   #     json_string = " [  ] : "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 6}
 
   #     assert :binary.part(json_string, 6, 1) == ":"
@@ -1243,14 +1281,14 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "empty string array error" do
   #     json_string = "[\"\""
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 2}
   #   end
 
   #   test "empty string array" do
   #     json_string = "[\"\", \"\",\"\",\"\"]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                {:string, ""},
@@ -1265,7 +1303,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     fp = "./test/test_parsing/n_string_unescaped_tab.json"
   #     json_string = File.read!(fp)
   #     # Apparently this is meant to error?
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                {:string, "\t"},
@@ -1277,28 +1315,28 @@ defmodule OriginalSlimWithSchemaTest do
   #   #   fp = "./test/test_parsing/n_structure_100000_opening_arrays.json"
   #   #   json_string = File.read!(fp)
 
-  #   #   assert JxonSlimOriginal.parse(json_string,json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #   #   assert JxonSlimOriginal.parse(json_string,json_string, OriginalSlimWithSchema, 0, acc) ==
   #   #            {:error, :unclosed_array, 99999}
   #   # end
 
   #   test "open array then an erroneous char" do
   #     json_string = "[ bbb]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_json_character, 2}
   #   end
 
   #   test "closing an array early is an error." do
   #     json_string = "[ { ] "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_object_key, 4}
   #   end
 
   #   test "closing an array in an object early is an error." do
   #     json_string = "{ \"a\": ] } "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unopened_array, 7}
 
   #     # we point to the char before the closing bracket. BUT should this be an unclosed
@@ -1309,7 +1347,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "closing an object early is an error." do
   #     json_string = "{\"b\": { \"a\": [ } } "
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 14}
 
   #     assert :binary.part(json_string, 14, 2) == " }"
@@ -1318,7 +1356,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "not closing an object is an error." do
   #     json_string = "[ [ { \"a\": 1] ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_object, 11}
 
   #     assert :binary.part(json_string, 11, 1) == "1"
@@ -1327,7 +1365,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " [{}] " do
   #     json_string = "[{}]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :object_start,
@@ -1339,7 +1377,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " [{} ] " do
   #     json_string = "[{} ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :object_start,
@@ -1354,11 +1392,11 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "a simple object" do
   #     json_string = "{ \f\n\t\r  \"a\": 1 \f\n\t\r}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
-  #                {:integer, "1"},
+  #                "1",
   #                :object_end
   #              ]
   #   end
@@ -1366,7 +1404,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "missing value error" do
   #     json_string = "[ [ { \"a\": ] ]"
   #     # Should this be missing comma? unclosed object really
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unopened_array, 11}
 
   #     assert :binary.part(json_string, 11, 1) == "]"
@@ -1375,7 +1413,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "missing val with comma" do
   #     json_string = "[ [ { \"a\": ,] ]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :missing_object_value, 10}
 
   #     assert :binary.part(json_string, 10, 2) == " ,"
@@ -1384,7 +1422,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "unclosed object and array" do
   #     json_string = "[ {"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :invalid_object_key, 2}
 
   #     assert :binary.part(json_string, 2, 1) == "{"
@@ -1393,7 +1431,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "{ \"thing\": [ }" do
   #     json_string = "{ \"thing\": [ }"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 12}
 
   #     assert :binary.part(json_string, 11, 2) == "[ "
@@ -1402,7 +1440,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " {} " do
   #     json_string = "{  }"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                :object_end
@@ -1412,25 +1450,25 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "error case" do
   #     json_string = "{ \"a\": ] }"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unopened_array, 7}
   #   end
 
   #   test "object with an object" do
   #     json_string = "{ \"a\": [{ \"b\": 2}], \"c\": 3 }"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
   #                :array_start,
   #                :object_start,
   #                {:object_key, "b"},
-  #                {:integer, "2"},
+  #                "2",
   #                :object_end,
   #                :array_end,
   #                {:object_key, "c"},
-  #                {:integer, "3"},
+  #                "3",
   #                :object_end
   #              ]
   #   end
@@ -1470,7 +1508,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     # expect to see where is trickier than it sounds.
   #     # we can ignore that for now though.
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
@@ -1487,7 +1525,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " [ {} " do
   #     json_string = "[ {}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 3}
 
   #     assert :binary.part(json_string, 3, 1) == "}"
@@ -1496,13 +1534,13 @@ defmodule OriginalSlimWithSchemaTest do
   #   test " multiple element objects " do
   #     json_string = "{ \"a\": 1, \"b\": 2}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
-  #                {:integer, "1"},
+  #                "1",
   #                {:object_key, "b"},
-  #                {:integer, "2"},
+  #                "2",
   #                :object_end
   #              ]
   #   end
@@ -1510,13 +1548,13 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "duplicate object keys is an error" do
   #     json_string = "{ \"a\": 1, \"a\": 2}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
-  #                {:integer, "1"},
+  #                "1",
   #                {:object_key, "a"},
-  #                {:integer, "2"},
+  #                "2",
   #                :object_end
   #              ]
   #   end
@@ -1531,7 +1569,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     # them if one so chose: {:error, :duplicate_object_key, "a"}
 
   #     # for now, last write wins I guess.
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
@@ -1545,11 +1583,11 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "empty object keys are allowed" do
   #     json_string = "{ \"\": 1}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, ""},
-  #                {:integer, "1"},
+  #                "1",
   #                :object_end
   #              ]
   #   end
@@ -1557,14 +1595,14 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "[}" do
   #     json_string = "[}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :unclosed_array, 0}
   #   end
 
   #   test " {\"a\":[]} " do
   #     json_string = "{\"a\":[]}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "a"},
@@ -1579,7 +1617,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     {"x":[{"id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}], "id": "yyyyyyyyyyyyyyyyyyyyyyyyy"}
   #     """
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "x"},
@@ -1600,7 +1638,7 @@ defmodule OriginalSlimWithSchemaTest do
   #     {"a": true} "x"
   #     """
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              {:error, :multiple_bare_values, 12}
 
   #     assert :binary.part(json_string, 12, 3) == "\"x\""
@@ -1609,7 +1647,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "object pointing to an object" do
   #     json_string = "{\"files\": {}}"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :object_start,
   #                {:object_key, "files"},
@@ -1622,7 +1660,7 @@ defmodule OriginalSlimWithSchemaTest do
   #   test "lists of objects [{}, {}, {}, {}]" do
   #     json_string = "[{}, {}, {}, {}]"
 
-  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc) ==
+  #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
   #              [
   #                :array_start,
   #                :object_start,
@@ -1648,7 +1686,7 @@ defmodule OriginalSlimWithSchemaTest do
   #       # we are actually creating something good.
   #       refute match?(
   #                {:error, _, _},
-  #                JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, @acc)
+  #                JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc)
   #              )
   #     end
   #   end
