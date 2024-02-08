@@ -118,6 +118,14 @@ defmodule Schema do
         rest_schema = schema.schema
         %{schema | current: rest_schema, path_prefix: []}
 
+      [:all, _item | rest_prefix] ->
+        rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
+        %{schema | current: rest_schema, path_prefix: rest_prefix}
+
+      # [:object, _item | rest_prefix] ->
+      #   rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
+      #   %{schema | current: rest_schema, path_prefix: rest_prefix}
+
       [_item | rest_prefix] ->
         rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
         %{schema | current: rest_schema, path_prefix: rest_prefix}
@@ -128,6 +136,9 @@ defmodule Schema do
   # if we are in an array. Which should mean if :all is in the path?
   def step_back_object(schema) do
     case schema.path_prefix do
+      [] ->
+        %{schema | current: schema.schema, path_prefix: []}
+
       [_item, :all | rest_prefix] ->
         rest_schema = get_in(schema.schema, Enum.reverse([:all | rest_prefix]))
         %{schema | current: rest_schema, path_prefix: [:all | rest_prefix]}
@@ -135,6 +146,9 @@ defmodule Schema do
       [:object, _item | rest_prefix] ->
         rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))
         %{schema | current: rest_schema, path_prefix: rest_prefix}
+
+      [_item] ->
+        %{schema | current: schema.schema, path_prefix: []}
 
       [_item | rest_prefix] ->
         rest_schema = get_in(schema.schema, Enum.reverse(rest_prefix))

@@ -120,6 +120,10 @@ defmodule JsonSchema do
     aggregate: {:aggregate_result, @aggregate_fields, &__MODULE__.aggregate_type/1}
   )
 
+  # In order to test the github thing what's a good comparison?
+  # we first have to create a schema that represents everything we want to keep...
+  # I think we'll have to generate it from the example unfortunately.
+
   def test() do
     j = """
       {
