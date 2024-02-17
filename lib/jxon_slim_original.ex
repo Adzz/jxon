@@ -735,6 +735,11 @@ defmodule JxonSlimOriginal do
 
   defp skip_whitespace(<<_remaining::binary>>, index), do: index
 
+  # What happens if the backslash is escaped? Should be an error... no?
+  defp parse_string(<<@backslash, @backslash, @quotation_mark, _::bits>>, end_character_index) do
+    {:error, :unescaped_quotation_mark, end_character_index + 2}
+  end
+
   defp parse_string(<<@backslash, @quotation_mark, rest::bits>>, end_character_index) do
     parse_string(rest, end_character_index + 2)
   end

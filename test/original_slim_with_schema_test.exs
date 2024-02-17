@@ -2,6 +2,16 @@ defmodule OriginalSlimWithSchemaTest do
   use ExUnit.Case
 
   test "schema test" do
+    # Let's say the schema expects this:
+
+    # { "name": { "integer": 1 } }
+    # But the actual is:
+    # { "name": "x", "integer": 1 }
+    # There needs to be something in the schema that explicitly says
+    # "we are expecting an open object here". And the handler needs to
+    # emit a thing at that point to say "this is an open object".
+    # Do we also need to close object? I guess so as that would help detect
+    # when we have things in the schema that never appeared in the JSON.
     json = """
       {
         "name": "TED DANSON QUEEN",
@@ -26,8 +36,50 @@ defmodule OriginalSlimWithSchemaTest do
       }
     """
 
+    # json = """
+    #   {
+    #     "has_many": [
+    #       {  "first_key": "eat more water" },
+    #       { "first_key": "drink more food" }
+    #     ]
+    #   }
+    # """
+
     # Not sure if this is a good idea yet. Still think a flat stack is a better idea but it
-    # requires being able to easily search all siblings.
+    # requires being able to easily search all siblings?
+    # It feels like a tree is just a 3d grid. If we know the cell coordinate then it's
+    # trivial to understand where we are in the tree, and also therefore what "next" and
+    # "previous" and "up" or "down" mean. Which means it should be trivial to navigate the
+    # tree in parallel to receiving events as it parses.
+
+    # I bet we could use the shunting yard algo for some reason too. Like mash in a queue
+    # in some clever way and voila. Because the nesting of objects and arrays feels awfully
+    # like parens. Like scopes in a PL or something. Because you are essentially
+    # figuring out when to apply the stuff in it maybe?
+
+    # What does it look like if we store the columns? Then the search for a sibling becomes
+    # a simple search down that column (ie through the list). The issue is that you loose
+    # the ability to see the connection to siblings. But can we keep that by having a matrix?
+    # Well. No, because a node can have many children?  You'd have to make the matrix as
+    # wide as the deepest nesting or something. And each node would need a count of its
+    # children. But then you could make a rule that was like "children are parent + X" or whatever.
+
+    # Assume you could keep that information in a parent then is there a way to traverse it
+    # efficiently.
+
+    # I really feel like the "one flat list" approach would be cool. AND I also wonder if
+    # having it be a binary and skipping X items would be more efficient or not.
+    # We should first try a simple example with a flat stack that we zipper to break
+    # apart, and skip with a reduce and a with_index or something.
+
+    # But encoding it in a binary would be sikk.
+    # What would the parent need to know? The total number of descendants? Or just children
+    # I guess it only has to get to its first child and that has to point to the next one
+    # because we have no guarantees about the order in which we will see elements.
+    # ALSO we are talking about our schema don't forget. So what would "go back" look like
+    # here? Likely as we iterate over the schema binary we have to keep a stack of the
+    # ancestors' indexes. then it's as simple as skipping from the start again by that amount.
+    # But likely we can step back by subtracting the top of the stack from the current."
     schema = %Schema{
       current: nil,
       schema: %{
@@ -37,7 +89,7 @@ defmodule OriginalSlimWithSchemaTest do
           "float" => true,
           "decimal" => true,
           "string" => true,
-          "list" => %{:all => true},
+          "list" => %{:all => :all},
           "aggregate" => %{
             object: %{
               "date" => true,
@@ -92,7 +144,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "just space is an error..." do
       json_string = " "
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :empty_document}
@@ -132,7 +184,7 @@ defmodule OriginalSlimWithSchemaTest do
                true
 
       json_string = "  \t \n \r  null  \t \n \r  "
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                nil
@@ -835,7 +887,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test " [\"a\"] " do
       json_string = File.read!("./test/test_parsing/y_structure_trailing_newline.json")
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                "a"
@@ -864,7 +916,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "empty array" do
       json_string = "[]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                []
@@ -872,7 +924,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "array of one number" do
       json_string = "[1]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                "1"
@@ -889,7 +941,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "array of string" do
       json_string = "[\"1\"]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                "1"
@@ -898,7 +950,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "array of boolean and nil" do
       json_string = "[true, false, null]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                true,
@@ -909,7 +961,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "nested stuff" do
       json_string = "[[true, []], [[\"a\",false,\"b\"\n\t\r], [1, null, 2.50, 112.2, 8]]]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                [[true, []], [["a", false, "b"], ["1", nil, "2.50", "112.2", "8"]]]
@@ -991,7 +1043,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "trailing comma [1,2,] " do
       json_string = "[1,2,]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :trailing_comma, 4}
@@ -1002,7 +1054,7 @@ defmodule OriginalSlimWithSchemaTest do
     # NESTING
     test "nested array" do
       json_string = "[[]]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                []
@@ -1039,7 +1091,7 @@ defmodule OriginalSlimWithSchemaTest do
 
       # We could also be like, technically the first unclosed array will always be unclosed.
       # If there are more unclosed arrays inside it then that's good and all but still the
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
       # outer one is unclosed. But is that a help to someone?
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :unclosed_array, 2}
@@ -1049,7 +1101,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "nested unclosed array whitespace" do
       json_string = "[[  ] "
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :unclosed_array, 4}
@@ -1059,7 +1111,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "multiple nested array" do
       json_string = "[[], [1, [3]]]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                [],
@@ -1069,7 +1121,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "nested with whitespace" do
       json_string = "[ [  \n\t ]\n\t\r,[  ] ]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == [
                [],
@@ -1134,7 +1186,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "0 is okay?" do
       json_string = "[0]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1144,7 +1196,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "minus 0 is unhinged but fine I guess? What even are numbers" do
       json_string = "[-0]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1154,7 +1206,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "minus 0 exp is unhinged but fine I guess? What even are numbers" do
       json_string = "[-0e+1]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1164,7 +1216,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "too many closing arrays" do
       json_string = "[  true ]  ]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :invalid_json_character, 11}
@@ -1174,7 +1226,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test " [0e+1] " do
       json_string = "[0e+1]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1185,8 +1237,18 @@ defmodule OriginalSlimWithSchemaTest do
     end
 
     test "unopened array example" do
+      # This one is tricky. Do we want to be able to turn off the filtering by just saying
+      # "accept all" will that have implications for devx and trying to check that something
+      # is specified. We might want to force someone to specify the nesting depth which on
+      # the one hand cool but on the other difficult if we can't say "the last element is
+      # an array", right? Wait, are we implementing patter matching? Yes. We are implementing PM
+
+      # The full array functionality is not going to be done by the talk, but the idea is
+      # you want to be able to say :all OR specify a specific pattern of things at specific
+      # indexes. We want to be able to say keep things from index N to Y. We probably need
+      # the concept of rest instead of all, then the extra stuff just sits on top of it.
       json_string = "[ [], ] ]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :trailing_comma, 4}
@@ -1196,7 +1258,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "unopened array is really just an errant comma" do
       json_string = "[  true ],  ]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :invalid_json_character, 9}
@@ -1206,7 +1268,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "start with a closing array." do
       json_string = " ]  ["
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :invalid_json_character, 1}
@@ -1216,7 +1278,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "valid array but then weird chars" do
       json_string = " [  ] : "
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :invalid_json_character, 6}
@@ -1226,7 +1288,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "empty string array error" do
       json_string = "[\"\""
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
                {:error, :unclosed_array, 2}
@@ -1234,7 +1296,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test "empty string array" do
       json_string = "[\"\", \"\",\"\",\"\"]"
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1250,7 +1312,7 @@ defmodule OriginalSlimWithSchemaTest do
     test " unescaped tab " do
       fp = "./test/test_parsing/n_string_unescaped_tab.json"
       json_string = File.read!(fp)
-      acc = {%Schema{current: nil, schema: %{all: true}}, []}
+      acc = {%Schema{current: nil, schema: %{all: :everything}}, []}
       # Apparently this is meant to error?
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) == ["\t"]
@@ -1316,7 +1378,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test " [{}] " do
       json_string = "[{}]"
-      acc = {%Schema{current: nil, schema: %{all: %{object: true}}}, []}
+      acc = {%Schema{current: nil, schema: %{all: %{object: %{}}}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1328,7 +1390,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test " [{} ] " do
       json_string = "[{} ]"
-      acc = {%Schema{current: nil, schema: %{all: %{object: true}}}, []}
+      acc = {%Schema{current: nil, schema: %{all: %{object: %{}}}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1542,7 +1604,7 @@ defmodule OriginalSlimWithSchemaTest do
 
     test " {\"a\":[]} " do
       json_string = "{\"a\":[]}"
-      acc = {%Schema{current: nil, schema: %{object: %{"a" => %{all: true}}}}, []}
+      acc = {%Schema{current: nil, schema: %{object: %{"a" => %{all: :everything}}}}, []}
 
       assert(
         JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
@@ -1576,47 +1638,44 @@ defmodule OriginalSlimWithSchemaTest do
       )
     end
 
-    #   test " object with bare value after  " do
-    #     json_string = """
-    #     {"a": true} "x"
-    #     """
+    test " object with bare value after  " do
+      json_string = """
+      {"a": true} "x"
+      """
 
-    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
-    #              {:error, :multiple_bare_values, 12}
+      acc =
+        {%Schema{
+           current: nil,
+           schema: %{object: %{"id" => true, "x" => %{all: %{object: %{"id" => true}}}}}
+         }, []}
 
-    #     assert :binary.part(json_string, 12, 3) == "\"x\""
-    #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               {:error, :multiple_bare_values, 12}
 
-    #   test "object pointing to an object" do
-    #     json_string = "{\"files\": {}}"
+      assert :binary.part(json_string, 12, 3) == "\"x\""
+    end
 
-    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
-    #              [
-    #                %{
-    #                "files" =>
-    #                %{
-    #                },
-    #                }
-    #              ]
-    #   end
+    test "object pointing to an object" do
+      json_string = "{\"files\": {}}"
 
-    #   test "lists of objects [{}, {}, {}, {}]" do
-    #     json_string = "[{}, {}, {}, {}]"
+      acc =
+        {%Schema{
+           current: nil,
+           schema: %{object: %{"files" => %{object: %{"ignored" => true}}}}
+         }, []}
 
-    #     assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
-    #              [
-    #                [
-    #                %{
-    #                },
-    #                %{
-    #                },
-    #                %{
-    #                },
-    #                %{
-    #                },
-    #                ]
-    #              ]
-    #   end
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               %{"files" => %{}}
+    end
+
+    test "lists of objects [{}, {}, {}, {}]" do
+      json_string = "[{}, {}, {}, {}]"
+
+      acc = {%Schema{current: nil, schema: %{all: %{object: %{}}}}, []}
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimWithSchema, 0, acc) ==
+               [%{}, %{}, %{}, %{}]
+    end
   end
 
   # describe "yes cases" do

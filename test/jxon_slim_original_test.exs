@@ -708,6 +708,20 @@ defmodule JxonSlimOriginalTest do
                string: "1,2,3,4,5,6"
              ]
     end
+
+    test "an invalid escape is an error" do
+      # YEA confusing because here we have Elixir escapes at play. So for every \ we want
+      # in the JSON we have to write two, one for Elixir to escape the \. So 4 \ is actually
+      # two \'s in the JSON. A good tip is to use String.codepoints(json_string) to see the
+      # characters after Elixir's escaping has been done.
+
+      json_string = ~s(" \\\\" ")
+
+      assert JxonSlimOriginal.parse(json_string, json_string, OriginalSlimHandler, 0, []) ==
+               {:error, :unescaped_quotation_mark, 4}
+
+      assert :binary.part(json_string, 4, 1) == "\""
+    end
   end
 
   describe "arrays" do
