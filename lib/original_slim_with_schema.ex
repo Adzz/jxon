@@ -8,8 +8,12 @@ defmodule OriginalSlimWithSchema do
       to do the same we just have to keep a count with two integers. We know we have done
       skipping once the count is == 0.
 
+    - Currently this returns a map. What would we have to do to be able to return a struct?
+    - We don't do any checks to see if something we specified in the schema was _not_ in the
+      data. I guess data schema handles that, but if we were like  full pattern matching then
+      yea... We'd probably not need data schema.
   """
-
+  # @compile {:inline, do_true: 4}
   def do_true(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -31,6 +35,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, do_false: 4}
   def do_false(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -52,6 +57,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, do_null: 4}
   def do_null(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -73,6 +79,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, do_string: 4}
   def do_string(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -97,6 +104,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, do_integer: 4}
   def do_integer(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -120,6 +128,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, do_float: 4}
   def do_float(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     # dbg()
 
@@ -143,6 +152,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, start_of_object: 3}
   def start_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
     # dbg()
 
@@ -163,6 +173,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, object_key: 4}
   def object_key(_original, _start_index, _end_index, {_, [{:skip, _, _} | _]} = acc) do
     # dbg()
 
@@ -185,6 +196,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, end_of_object: 3}
   def end_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
     # dbg()
     new_obj_depth = obj_depth - 1
@@ -217,7 +229,8 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
-  def start_of_array(_, _, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
+  # @compile {:inline, start_of_array: 3}
+  def start_of_array(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
     # dbg()
 
     {schema, [{:skip, array_depth + 1, obj_depth} | rest_acc]}
@@ -250,6 +263,7 @@ defmodule OriginalSlimWithSchema do
     # |> dbg()
   end
 
+  # @compile {:inline, end_of_array: 3}
   def end_of_array(_original, _start_index, {schema, acc}) do
     # dbg()
     schema = schema.__struct__.step_back_array(schema)
@@ -279,6 +293,7 @@ defmodule OriginalSlimWithSchema do
     {:error, :empty_document}
   end
 
+  # @compile {:inline, add_value: 2}
   defp add_value(value, [list | rest_acc]) when is_list(list) do
     [[value | list] | rest_acc]
   end

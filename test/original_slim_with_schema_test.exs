@@ -36,15 +36,6 @@ defmodule OriginalSlimWithSchemaTest do
       }
     """
 
-    # json = """
-    #   {
-    #     "has_many": [
-    #       {  "first_key": "eat more water" },
-    #       { "first_key": "drink more food" }
-    #     ]
-    #   }
-    # """
-
     # Not sure if this is a good idea yet. Still think a flat stack is a better idea but it
     # requires being able to easily search all siblings?
     # It feels like a tree is just a 3d grid. If we know the cell coordinate then it's
@@ -122,6 +113,25 @@ defmodule OriginalSlimWithSchemaTest do
                  %{"first_key" => "drink more food"}
                ]
              }
+  end
+
+  test "skipping over an array" do
+    json = """
+      {
+        "ignored": [
+          {  "first_key": "eat more water" },
+          { "first_key": "drink more food" }
+        ],
+        "not_ignored": "HIII"
+      }
+    """
+
+    schema = %Schema{current: nil, schema: %{:object => %{"not_ignored" => true}}}
+    acc = {schema, []}
+
+    assert JxonSlimOriginal.parse(json, json, OriginalSlimWithSchema, 0, acc) == %{
+             "not_ignored" => "HIII"
+           }
   end
 
   describe "bare values" do

@@ -206,6 +206,7 @@ defmodule JxonSlimOriginal do
     {:error, :invalid_json_character, current_index}
   end
 
+  # @compile {:inline, parse_object: 6}
   defp parse_object(<<rest::binary>>, original, handler, current_index, acc, depth_stack) do
     case handler.start_of_object(original, current_index - 1, acc) do
       {:error, _, _} = error ->
@@ -217,6 +218,8 @@ defmodule JxonSlimOriginal do
         key_value(rest, original, handler, end_index, acc, depth_stack)
     end
   end
+
+  # @compile {:inline, key_value: 6}
 
   defp key_value(<<@close_object, rest::bits>>, original, handler, index, acc, depth_stack) do
     close_object(rest, original, handler, index, acc, depth_stack)
@@ -275,6 +278,8 @@ defmodule JxonSlimOriginal do
     end
   end
 
+  # @compile {:inline, parse_object_key: 5}
+
   defp parse_object_key(
          <<@quotation_mark, rest::bits>> = j,
          original,
@@ -310,6 +315,8 @@ defmodule JxonSlimOriginal do
     {:error, :invalid_object_key, index}
   end
 
+  # @compile {:inline, parse_array: 6}
+
   defp parse_array(<<array_contents::binary>>, original, handler, current_index, acc, depth_stack) do
     # current index points to head of array_contents, we want the char before ie the '['
     case handler.start_of_array(original, current_index - 1, acc) do
@@ -333,6 +340,8 @@ defmodule JxonSlimOriginal do
         end
     end
   end
+
+  # @compile {:inline, parse_values: 6}
 
   defp parse_values(<<@close_array, _rest::bits>>, original, handler, index, acc, [
          {@array, array_depth} | rest_depth
@@ -395,6 +404,7 @@ defmodule JxonSlimOriginal do
     end
   end
 
+  # @compile {:inline, parse_value: 6}
   defp parse_value(
          <<@open_array, rest::bits>>,
          original,

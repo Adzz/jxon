@@ -1,31 +1,89 @@
+defmodule ExampleGithubSchema do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(field: {:comments_url, ["comments_url"], &__MODULE__.string_type/1})
+  def string_type(val), do: {:ok, val}
+end
+
+defmodule ExampleDataSchema do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(has_many: {:githubs, [:all], ExampleGithubSchema})
+end
+
+# %{
+#   "features" => [
+#     %{
+#       "geometry" => %{"type" => "Polygon"},
+#       "properties" => %{"name" => "Canada"},
+#       "type" => "Feature"
+#     }
+#   ],
+#   "type" => "FeatureCollection"
+# }
+
+defmodule Property do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(field: {:name, ["name"], &__MODULE__.string_type/1})
+  def string_type(val), do: {:ok, val}
+end
+
+defmodule Geom do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(field: {:type, ["type"], &__MODULE__.string_type/1})
+  def string_type(val), do: {:ok, val}
+end
+
+defmodule CanadaFeature do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(
+    has_one: {:geometry, ["geometry"], Geom},
+    has_one: {:properties, ["properties"], Property},
+    field: {:type, ["type"], &__MODULE__.string_type/1}
+  )
+
+  def string_type(val), do: {:ok, val}
+end
+
+defmodule CanadaSchema do
+  import DataSchema, only: [data_schema: 1]
+  @data_accessor JsonSchemaAccessor
+  data_schema(
+    has_many: {:features, ["features"], CanadaFeature},
+    field: {:type, ["type"], &__MODULE__.string_type/1}
+  )
+
+  def string_type(val), do: {:ok, val}
+end
+
 defmodule JsonSchemaAccessor do
   @behaviour DataSchema.DataAccessBehaviour
 
   @impl DataSchema.DataAccessBehaviour
   def field(data, path) do
-    data |> IO.inspect(limit: :infinity, label: "FIELD DATA")
-    path |> IO.inspect(limit: :infinity, label: "FIELD PATH")
+    get_in(data, path)
   end
 
   @impl DataSchema.DataAccessBehaviour
   def list_of(data, path) do
+    raise "not implemented"
   end
 
   @impl DataSchema.DataAccessBehaviour
   def has_one(data, path) do
+    get_in(data, path)
   end
 
   @impl DataSchema.DataAccessBehaviour
-  def has_many(data, path) do
+  def has_many(data, [:all]) do
+    data
   end
 
-  defp get_path(data, path) do
-    Enum.reduce_while(path, data, fn node, data ->
-      case Map.get(data, node) do
-        nil -> {:halt, nil}
-        value -> {:cont, value}
-      end
-    end)
+  def has_many(data, path) do
+    get_in(data, path)
   end
 end
 
