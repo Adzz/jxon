@@ -127,8 +127,8 @@ defmodule Jxon do
   """
   def parse(json, handler, start_index, acc) do
     # TODO check we aren't off by one.
-    <<_skip::binary-size(current_index), the_rest::bits>> = json
-    parse(the_rest, the_rest, start_index, acc)
+    <<_skip::binary-size(start_index), the_rest::bits>> = json
+    parse(the_rest, the_rest, handler, start_index, acc)
   end
 
   def parse(<<>>, original, handler, current_index, acc) do
