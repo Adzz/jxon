@@ -1,3 +1,3 @@
 # Jxon
 
-An event based json parser.
+An EXPERIMENTAL event based json parser. Don't use it.
