@@ -201,13 +201,13 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, ""} ->
-        case handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.handle_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> handler.end_of_document(original, end_index - 1, acc)
         end
 
       {end_index, remaining} ->
-        case handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.handle_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(remaining, end_index, original, acc, handler)
         end
@@ -220,7 +220,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
         end
@@ -233,7 +233,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
         end
@@ -246,7 +246,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_null(original, start_index, end_index - 1, acc) do
+        case handler.handle_null(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, original, acc, handler)
         end
@@ -439,7 +439,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.handle_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
         end
@@ -526,7 +526,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
         end
@@ -539,7 +539,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_false(original, start_index, end_index - 1, acc) do
+        case handler.handle_false(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
         end
@@ -552,7 +552,7 @@ defmodule JxonIndexesUnoptimized do
         error
 
       {end_index, rest} ->
-        case handler.do_null(original, start_index, end_index - 1, acc) do
+        case handler.handle_null(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, rest, acc, depth_stack}
         end

@@ -2,19 +2,19 @@ defmodule CastingHandler do
   @moduledoc """
   """
 
-  def do_true(_original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_true(_original_binary, start_index, end_index, acc) when start_index <= end_index do
     update_acc(true, acc)
   end
 
-  def do_false(_original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_false(_original_binary, start_index, end_index, acc) when start_index <= end_index do
     update_acc(false, acc)
   end
 
-  def do_null(_original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_null(_original_binary, start_index, end_index, acc) when start_index <= end_index do
     update_acc(nil, acc)
   end
 
-  def do_string(original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_string(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # the start and end index include the quote marks. But we can drop them for our use
     # case.
     len = end_index - 1 - (start_index + 1) + 1
@@ -57,7 +57,7 @@ defmodule CastingHandler do
   # Errors the lexer will catch: key and no value, invalid key, value and no key, no
   # separator, no comma, invalid chars at random places.... etc.
   def object_key(original_binary, start_index, end_index, acc) when start_index <= end_index do
-    [key | _] = do_string(original_binary, start_index, end_index, acc)
+    [key | _] = handle_string(original_binary, start_index, end_index, acc)
 
     [{key, :not_parsed_yet} | acc]
   end

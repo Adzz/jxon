@@ -1,4 +1,4 @@
-defmodule OriginalSlimWithSchema do
+defmodule SchemaHandler do
   @object_key :object_key
 
   @moduledoc """
@@ -13,194 +13,116 @@ defmodule OriginalSlimWithSchema do
       data. I guess data schema handles that, but if we were like  full pattern matching then
       yea... We'd probably not need data schema.
   """
-  # @compile {:inline, handle_true: 4}
-  def handle_true(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
 
+  def handle_true(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_true(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_true(_original, _start_index, _end_index, {schema, acc}) do
-    # dbg()
-
     {schema, add_value(true, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, handle_false: 4}
   def handle_false(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
-
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_false(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_false(_original, _start_index, _end_index, {schema, acc}) do
-    # dbg()
-
     {schema, add_value(false, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, handle_null: 4}
   def handle_null(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
-
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_null(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_null(_original, _start_index, _end_index, {schema, acc}) do
-    # dbg()
-
     {schema, add_value(nil, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, handle_string: 4}
   def handle_string(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
-
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_string(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_string(original, start_index, end_index, {schema, acc}) do
-    # dbg()
     len = end_index - start_index + 1
     # This is to exclude the speech marks in the original JSON. We do no escaping as is.
     string = :binary.part(original, start_index + 1, len - 2)
 
     {schema, add_value(string, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, handle_integer: 4}
   def handle_integer(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
-
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_integer(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_integer(original, start_index, end_index, {schema, acc})
       when start_index <= end_index do
-    # dbg()
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
-
     {schema, add_value(numb, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, handle_float: 4}
   def handle_float(_, _, _, {schema, [{:skip, 0, 0} | rest]}) do
-    # dbg()
-
     {schema, rest}
-    # |> dbg()
   end
 
   def handle_float(_, _, _, {_, [{:skip, _array_depth, _obj_depth} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def handle_float(original, start_index, end_index, {schema, acc})
       when start_index <= end_index do
-    # dbg()
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
-
     {schema, add_value(numb, acc)}
-    # |> dbg()
   end
 
-  # @compile {:inline, start_of_object: 3}
   def start_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
-    # dbg()
-
     {schema, [{:skip, array_depth, obj_depth + 1} | rest_acc]}
-    # |> dbg()
   end
 
   def start_of_object(_original, _start_index, {schema, acc}) do
-    # dbg()
-
-    # Probably a better return value is just  {schema, boolean}
-    # Then we lose a case.
     case schema.__struct__.contains?(schema, :object) do
       {inner, true} -> {inner, [%{} | acc]}
       {inner, false} -> {inner, [{:skip, 0, 1} | acc]}
     end
-
-    # |> dbg()
   end
 
-  # @compile {:inline, object_key: 4}
   def object_key(_original, _start_index, _end_index, {_, [{:skip, _, _} | _]} = acc) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def object_key(original, start_index, end_index, {schema, acc}) when start_index <= end_index do
-    # dbg()
     len = end_index - start_index + 1
     # This is to exclude the speech marks in the original JSON.
     key = :binary.part(original, start_index + 1, len - 2)
-    # key |> dbg()
 
     case schema.__struct__.contains?(schema, key) do
       {inner, true} -> {inner, add_value({@object_key, key}, acc)}
       {inner, false} -> {inner, [{:skip, 0, 0} | acc]}
     end
-
-    # |> dbg()
   end
 
-  # @compile {:inline, end_of_object: 3}
   def end_of_object(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
-    # dbg()
     new_obj_depth = obj_depth - 1
 
     if new_obj_depth <= 0 && array_depth <= 0 do
@@ -208,13 +130,14 @@ defmodule OriginalSlimWithSchema do
     else
       {schema, [{:skip, array_depth, new_obj_depth} | rest_acc]}
     end
-
-    # |> dbg()
   end
 
   def end_of_object(_original, _start_index, {schema, acc}) do
-    # dbg()
-    # Here we have to tell the schema we are done with the object.
+    # Here we have to tell the schema we are done with the object. This depends on the
+    # weird schema design that we have chosen here. We should really benchmark against an
+    # existing zipper implementation. If the schema could be a zipper there's no reason we
+    # couldn't also include the casting functions. IN FACT instead of "true" why don't we
+    # just use that fns? One problem is has one / many I think.
     schema = schema.__struct__.step_back_object(schema)
 
     case acc do
@@ -227,31 +150,20 @@ defmodule OriginalSlimWithSchema do
       [map | rest_acc] when is_map(map) ->
         {schema, [map | rest_acc]}
     end
-
-    # |> dbg()
   end
 
-  # @compile {:inline, start_of_array: 3}
   def start_of_array(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
-    # dbg()
-
     {schema, [{:skip, array_depth + 1, obj_depth} | rest_acc]}
-    # |> dbg()
   end
 
   def start_of_array(_original, _start_index, {schema, acc}) do
-    # dbg()
-
     case schema.__struct__.contains?(schema, :all) do
       {inner, true} -> {inner, [[] | acc]}
       {inner, false} -> {inner, [{:skip, 1, 0} | acc]}
     end
-
-    # |> dbg()
   end
 
   def end_of_array(_, _, {schema, [{:skip, array_depth, obj_depth} | rest_acc]}) do
-    # dbg()
     new_array_depth = array_depth - 1
 
     if new_array_depth <= 0 && obj_depth <= 0 do
@@ -261,13 +173,9 @@ defmodule OriginalSlimWithSchema do
     else
       {schema, [{:skip, new_array_depth, obj_depth} | rest_acc]}
     end
-
-    # |> dbg()
   end
 
-  # @compile {:inline, end_of_array: 3}
   def end_of_array(_original, _start_index, {schema, acc}) do
-    # dbg()
     schema = schema.__struct__.step_back_array(schema)
 
     case acc do
@@ -280,22 +188,16 @@ defmodule OriginalSlimWithSchema do
       [list | rest_acc] when is_list(list) ->
         {schema, [Enum.reverse(list) | rest_acc]}
     end
-
-    # |> dbg()
   end
 
   def end_of_document(_original, _end_index, {_schema, [acc]}) do
-    # dbg()
-
     acc
-    # |> dbg()
   end
 
   def end_of_document(_original, _end_index, {_schema, []}) do
     {:error, :empty_document}
   end
 
-  # @compile {:inline, add_value: 2}
   defp add_value(value, [list | rest_acc]) when is_list(list) do
     [[value | list] | rest_acc]
   end

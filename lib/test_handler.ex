@@ -8,28 +8,28 @@ defmodule TestHandler do
 
   # We don't even really need to extract the value. Or we could but do that as a separate pass?
   # That would reduce the mems I think..
-  def do_true(original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_true(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # we add 1 because the indexes are 0 indexed but length isn't.
     len = end_index - start_index + 1
     value = :binary.part(original_binary, start_index, len)
     update_acc(value, acc)
   end
 
-  def do_false(original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_false(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # we add 1 because the indexes are 0 indexed but length isn't.
     len = end_index - start_index + 1
     value = :binary.part(original_binary, start_index, len)
     update_acc(value, acc)
   end
 
-  def do_null(original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_null(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # we add 1 because the indexes are 0 indexed but length isn't.
     len = end_index - start_index + 1
     value = :binary.part(original_binary, start_index, len)
     update_acc(value, acc)
   end
 
-  def do_string(original_binary, start_index, end_index, acc) when start_index <= end_index do
+  def handle_string(original_binary, start_index, end_index, acc) when start_index <= end_index do
     # the start and end index include the quote marks. But we can drop them for our use
     # case.
     len = end_index - 1 - (start_index + 1) + 1
@@ -71,7 +71,7 @@ defmodule TestHandler do
   # Errors the lexer will catch: key and no value, invalid key, value and no key, no
   # separator, no comma, invalid chars at random places.... etc.
   def object_key(original_binary, start_index, end_index, acc) when start_index <= end_index do
-    [key | _] = do_string(original_binary, start_index, end_index, acc)
+    [key | _] = handle_string(original_binary, start_index, end_index, acc)
 
     [{key, :not_parsed_yet} | acc]
     # |> IO.inspect(limit: :infinity, label: "object_key 1")

@@ -9,19 +9,19 @@ defmodule DoNothingHandler do
   @array_start 9
   @array_end 10
 
-  def do_true(_start_index, _end_index, acc) do
+  def handle_true(_start_index, _end_index, acc) do
     [true | acc]
   end
 
-  def do_false(_start_index, _end_index, acc) do
+  def handle_false(_start_index, _end_index, acc) do
     [false | acc]
   end
 
-  def do_null(_start_index, _end_index, acc) do
+  def handle_null(_start_index, _end_index, acc) do
     [nil | acc]
   end
 
-  def do_string(start_index, end_index, acc) do
+  def handle_string(start_index, end_index, acc) do
     len = end_index - 1 - (start_index + 1) + 1
     [{@string, start_index + 1, len} | acc]
   end

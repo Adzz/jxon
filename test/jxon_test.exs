@@ -217,10 +217,10 @@
 
 #     """
 
-#     def do_true(_acc), do: true
-#     def do_false(_acc), do: false
-#     def do_null(_acc), do: nil
-#     def do_string(string, _acc), do: string
+#     def handle_true(_acc), do: true
+#     def handle_false(_acc), do: false
+#     def handle_null(_acc), do: nil
+#     def handle_string(string, _acc), do: string
 #     def do_negative_number(number, _acc), do: "-" <> number
 #     def do_positive_number(number, _acc), do: number
 #     def end_of_document(acc), do: acc

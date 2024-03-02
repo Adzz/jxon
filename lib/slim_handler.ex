@@ -47,22 +47,22 @@ defmodule SlimHandler do
   Can we use schemas to filter down the data we keep? Do we have to verify it's correct.
   """
 
-  def do_true(start_index, end_index, acc) when start_index <= end_index do
+  def handle_true(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
     [{@true_, start_index, len} | acc]
   end
 
-  def do_false(start_index, end_index, acc) when start_index <= end_index do
+  def handle_false(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
     [{@false_, start_index, len} | acc]
   end
 
-  def do_null(start_index, end_index, acc) when start_index <= end_index do
+  def handle_null(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
     [{@null_, start_index, len} | acc]
   end
 
-  def do_string(start_index, end_index, acc) when start_index <= end_index do
+  def handle_string(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - 1 - (start_index + 1) + 1
     [{@string, start_index, len} | acc]
   end

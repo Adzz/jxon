@@ -44,19 +44,19 @@ defmodule SlimerHandler do
   perf or not..
   """
 
-  def do_true(start_index, end_index, acc) when start_index <= end_index do
+  def handle_true(start_index, end_index, acc) when start_index <= end_index do
     [true | acc]
   end
 
-  def do_false(start_index, end_index, acc) when start_index <= end_index do
+  def handle_false(start_index, end_index, acc) when start_index <= end_index do
     [false | acc]
   end
 
-  def do_null(start_index, end_index, acc) when start_index <= end_index do
+  def handle_null(start_index, end_index, acc) when start_index <= end_index do
     [nil | acc]
   end
 
-  def do_string(start_index, end_index, acc) when start_index <= end_index do
+  def handle_string(start_index, end_index, acc) when start_index <= end_index do
     len = end_index - 1 - (start_index + 1) + 1
     [{@string, start_index + 1, len} | acc]
   end

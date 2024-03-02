@@ -20,19 +20,19 @@ defmodule OriginalSlimHandler do
   # @array_start 6
   # @array_end 7
 
-  def do_true(_original, _start_index, _end_index, acc) do
+  def handle_true(_original, _start_index, _end_index, acc) do
     [true | acc]
   end
 
-  def do_false(_original, _start_index, _end_index, acc) do
+  def handle_false(_original, _start_index, _end_index, acc) do
     [false | acc]
   end
 
-  def do_null(_original, _start_index, _end_index, acc) do
+  def handle_null(_original, _start_index, _end_index, acc) do
     [nil | acc]
   end
 
-  def do_string(original, start_index, end_index, acc) when start_index <= end_index do
+  def handle_string(original, start_index, end_index, acc) when start_index <= end_index do
     # len = end_index - 1 - (start_index + 1) + 1
     # string = :binary.part(original, start_index, len)
     len = end_index - start_index + 1
@@ -41,13 +41,13 @@ defmodule OriginalSlimHandler do
     [{@string, string} | acc]
   end
 
-  def do_integer(original, start_index, end_index, acc) when start_index <= end_index do
+  def handle_integer(original, start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
     [{@integer, numb} | acc]
   end
 
-  def do_float(original, start_index, end_index, acc) when start_index <= end_index do
+  def handle_float(original, start_index, end_index, acc) when start_index <= end_index do
     len = end_index - start_index + 1
     numb = :binary.part(original, start_index, len)
     [{@float, numb} | acc]

@@ -150,7 +150,7 @@ defmodule JxonSlimOriginal do
       end_index ->
         <<_skip::binary-size(end_index - current_index), rest::bits>> = j
 
-        case handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.handle_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
         end
@@ -165,7 +165,7 @@ defmodule JxonSlimOriginal do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
         end
@@ -180,7 +180,7 @@ defmodule JxonSlimOriginal do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
         end
@@ -195,7 +195,7 @@ defmodule JxonSlimOriginal do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_null(original, start_index, end_index - 1, acc) do
+        case handler.handle_null(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, original, end_index, acc, handler)
         end
@@ -207,6 +207,10 @@ defmodule JxonSlimOriginal do
   end
 
   defp parse_object(<<rest::binary>>, original, handler, current_index, acc, depth_stack) do
+    # Is it always - 1 in the case of whitespace before the object open? IT doesn't matter
+    # at the moment because it's not actually used in handlers, but this will be wrong
+    # for some bits. Implies the event emit needs to happen in the caller, not here..
+    # We should also check other places don't suffer from this.
     case handler.start_of_object(original, current_index - 1, acc) do
       {:error, _, _} = error ->
         error
@@ -446,7 +450,7 @@ defmodule JxonSlimOriginal do
         error
 
       end_index ->
-        case handler.do_string(original, current_index, end_index - 1, acc) do
+        case handler.handle_string(original, current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -518,7 +522,7 @@ defmodule JxonSlimOriginal do
         error
 
       end_index ->
-        case handler.do_true(original, start_index, end_index - 1, acc) do
+        case handler.handle_true(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -531,7 +535,7 @@ defmodule JxonSlimOriginal do
         error
 
       end_index ->
-        case handler.do_false(original, start_index, end_index - 1, acc) do
+        case handler.handle_false(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -544,7 +548,7 @@ defmodule JxonSlimOriginal do
         error
 
       end_index ->
-        case handler.do_null(original, start_index, end_index - 1, acc) do
+        case handler.handle_null(original, start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -791,7 +795,7 @@ defmodule JxonSlimOriginal do
           error
 
         end_index ->
-          case handler.do_integer(original, start_index, end_index - 1, acc) do
+          case handler.handle_integer(original, start_index, end_index - 1, acc) do
             {:error, _, _} = error -> error
             acc -> {end_index, acc}
           end
@@ -813,7 +817,7 @@ defmodule JxonSlimOriginal do
   end
 
   defp parse_number(_, end_index, start_index, original, handler, acc) do
-    case handler.do_integer(original, start_index, end_index - 1, acc) do
+    case handler.handle_integer(original, start_index, end_index - 1, acc) do
       {:error, _, _} = error -> error
       acc -> {end_index, acc}
     end
@@ -846,7 +850,7 @@ defmodule JxonSlimOriginal do
           error
 
         end_index ->
-          case handler.do_float(original, start_index, end_index - 1, acc) do
+          case handler.handle_float(original, start_index, end_index - 1, acc) do
             {:error, _, _} = error -> error
             acc -> {end_index, acc}
           end
@@ -855,7 +859,7 @@ defmodule JxonSlimOriginal do
   end
 
   defp parse_fractional_digits(_, end_index, start_index, original, handler, acc) do
-    case handler.do_float(original, start_index, end_index - 1, acc) do
+    case handler.handle_float(original, start_index, end_index - 1, acc) do
       {:error, _, _} = error -> error
       acc -> {end_index, acc}
     end

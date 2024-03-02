@@ -154,7 +154,7 @@ defmodule JxonSlim do
       end_index ->
         <<_skip::binary-size(end_index - current_index), rest::bits>> = j
 
-        case handler.do_string(current_index, end_index - 1, acc) do
+        case handler.handle_string(current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, acc, handler)
         end
@@ -169,7 +169,7 @@ defmodule JxonSlim do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_true(start_index, end_index - 1, acc) do
+        case handler.handle_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, acc, handler)
         end
@@ -184,7 +184,7 @@ defmodule JxonSlim do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_true(start_index, end_index - 1, acc) do
+        case handler.handle_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, acc, handler)
         end
@@ -199,7 +199,7 @@ defmodule JxonSlim do
       end_index ->
         <<_skip::binary-size(end_index - start_index), rest::bits>> = j
 
-        case handler.do_null(start_index, end_index - 1, acc) do
+        case handler.handle_null(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> parse_remaining_whitespace(rest, end_index, acc, handler)
         end
@@ -420,7 +420,7 @@ defmodule JxonSlim do
         error
 
       end_index ->
-        case handler.do_string(current_index, end_index - 1, acc) do
+        case handler.handle_string(current_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -492,7 +492,7 @@ defmodule JxonSlim do
         error
 
       end_index ->
-        case handler.do_true(start_index, end_index - 1, acc) do
+        case handler.handle_true(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -505,7 +505,7 @@ defmodule JxonSlim do
         error
 
       end_index ->
-        case handler.do_false(start_index, end_index - 1, acc) do
+        case handler.handle_false(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
@@ -518,7 +518,7 @@ defmodule JxonSlim do
         error
 
       end_index ->
-        case handler.do_null(start_index, end_index - 1, acc) do
+        case handler.handle_null(start_index, end_index - 1, acc) do
           {:error, _, _} = error -> error
           acc -> {end_index, acc, depth_stack}
         end
