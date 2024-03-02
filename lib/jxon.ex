@@ -1,6 +1,14 @@
 defmodule Jxon do
   @moduledoc """
-  An event based JSON parser.
+  An event based JSON parser. Jxon will parse JSON and call a callback module that you provide
+  when it encounters different things in that JSON, it is then up to you to decide what to
+  do to the original binary to extract and cast that value. For example you may wish to
+  escape the strings or implement parsing in a JCS compliant way.
+
+  Examples and helper functions exist in here to do things like _only_ parse the elements
+  that have been pre-specified as desired.
+
+  This is all WIP still and more a POC than a working library you should use.
 
   ### JSON
 
